@@ -1,0 +1,862 @@
+/*
+ * 일보자 — 전역 스타일.
+ * 접근성이 타협 불가다 (00.요구사항 §7): 터치 최소 48px · 주요 60px · 셔터 88px · 본문 16px 이상.
+ * 큰글씨 모드는 :root 의 --fs / --tap 만 갈아끼우면 전 화면이 따라온다.
+ */
+
+:root {
+  --brand: #1a62d6;
+  --accent: #ffd600;
+  --before: #e8590c;
+  --after: #2b8a3e;
+  --bad: #c92a2a;
+
+  --ink: #16181d;
+  --dim: #697079;
+  --line: #d7dbe0;
+  --bg: #f2f4f7;
+  --paper: #fff;
+
+  --fs: 16px;
+  --tap: 48px;
+  --tap-lg: 60px;
+}
+
+:root[data-big='1'] {
+  --fs: 21px;
+  --tap: 64px;
+  --tap-lg: 72px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font: var(--fs) / 1.45 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* 폰 프레임 — PC 브라우저에서 개발할 때 실제 비율로 본다 */
+.phone {
+  position: relative;
+  width: min(430px, 100vw);
+  height: min(932px, 100vh);
+  margin: 0 auto;
+  background: var(--paper);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 하위 화면 헤더 (메인·홈에는 없다. 03 §2.1) ── */
+.hd {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 52px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+.hd h1 {
+  margin: 0;
+  font-size: 1.06em;
+  font-weight: 700;
+}
+.icob {
+  width: var(--tap);
+  height: var(--tap);
+  border: 0;
+  background: none;
+  font-size: 1.25em;
+  border-radius: 8px;
+}
+.icob:active {
+  background: #eef1f5;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+/* ── 홈 (S0) ── */
+.home {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  text-align: center;
+}
+.brand-name {
+  font-size: 1.7em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.brand-sub {
+  display: block;
+  font-size: 0.48em;
+  font-weight: 500;
+  color: var(--dim);
+  margin-top: 4px;
+}
+/* 실제 보드판처럼 보이게 — 진한 테두리 + 라벨 열 음영 (app.html #hcard 대응) */
+.hcard {
+  width: 100%;
+  border: 2px solid #16324f;
+  background: var(--paper);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px #0001;
+}
+.hcard .r {
+  display: flex;
+  border-top: 1px solid #16324f;
+  min-height: 38px;
+}
+.hcard .r:first-child {
+  border-top: 0;
+}
+.hcard .k {
+  flex: 0 0 32%;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: #eef3f7;
+  border-right: 1px solid #16324f;
+  font-weight: 700;
+  font-size: 0.85em;
+  text-align: left;
+}
+.hcard .v {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-weight: 600;
+  font-size: 0.9em;
+  color: #333;
+}
+.run {
+  width: 100%;
+  min-height: 72px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 1.16em;
+  font-weight: 800;
+}
+.hsub {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.hsub button {
+  flex: 1;
+  min-height: var(--tap-lg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+}
+.hslot {
+  width: 100%;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  text-align: left;
+  background: none;
+}
+.hslot b {
+  display: block;
+}
+.hslot span {
+  font-size: 0.84em;
+  color: var(--dim);
+}
+
+/* ── 메인 (S1) = 표 + 아이콘바 + 아레나 3단 (03 §1) ── */
+.tbl {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+.tbl .r {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--line);
+  min-height: var(--tap);
+}
+.tbl .r:first-child {
+  border-top: 0;
+}
+.tbl .k {
+  flex: 0 0 96px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  color: var(--dim);
+  background: #fafbfc;
+  border-right: 1px solid var(--line);
+  font-size: 0.94em;
+}
+.tbl .v {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  text-align: left;
+}
+.tbl .v.auto {
+  color: var(--dim);
+}
+.tbl .v.empty {
+  color: var(--bad);
+}
+.tbl .v .txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tbl .v .more {
+  flex: 0 0 auto;
+  color: var(--dim);
+  font-size: 0.8em;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: var(--paper);
+}
+.phase {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  flex: 1;
+}
+.phase button {
+  flex: 1;
+  min-height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--dim);
+}
+.phase button[aria-pressed='true'] {
+  color: #fff;
+  border-color: transparent;
+  font-weight: 700;
+}
+.phase button.b[aria-pressed='true'] {
+  background: var(--before);
+}
+.phase button.a[aria-pressed='true'] {
+  background: var(--after);
+}
+
+.icons {
+  flex: 0 0 auto;
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  background: #fafbfc;
+}
+.icons button {
+  flex: 1;
+  min-height: var(--tap-lg);
+  border: 0;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.74em;
+  color: var(--dim);
+  padding: 6px 0;
+}
+.icons button .ic {
+  font-size: 1.7em;
+  line-height: 1;
+}
+.icons button.cam {
+  color: var(--brand);
+  font-weight: 700;
+}
+.icons button.cam .ic {
+  font-size: 2.1em;
+}
+.icons button:active {
+  background: #eef1f5;
+}
+
+.arena {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  background: #10131a;
+}
+.sidetab {
+  flex: 0 0 26px;
+  writing-mode: vertical-rl;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #232833;
+  color: #cfd4dc;
+  font-size: 0.78em;
+  letter-spacing: 0.1em;
+  border: 0;
+  padding: 0;
+}
+.stage {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: pan-y;
+}
+.stage canvas {
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+}
+.empty {
+  color: #aeb4bd;
+  text-align: center;
+  padding: 20px;
+  font-size: 0.94em;
+}
+.empty b {
+  color: #fff;
+}
+.pos {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 99px;
+  font-size: 0.84em;
+}
+.sw {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: var(--tap-lg);
+  height: var(--tap-lg);
+  border-radius: 99px;
+  border: 0;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 1.5em;
+}
+.sw[disabled] {
+  opacity: 0.22;
+}
+.sw.l {
+  left: 6px;
+}
+.sw.r {
+  right: 6px;
+}
+.safe {
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #cfd4dc;
+  font-size: 0.76em;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.45);
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+
+/* 사이드 패널 */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 40;
+  border: 0;
+  padding: 0;
+}
+.panel {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 76%;
+  max-width: 300px;
+  background: var(--paper);
+  z-index: 41;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+.panel.left {
+  left: 0;
+  box-shadow: 4px 0 18px rgba(0, 0, 0, 0.25);
+}
+.panel.right {
+  right: 0;
+  box-shadow: -4px 0 18px rgba(0, 0, 0, 0.25);
+}
+.panel h4 {
+  margin: 4px 0 8px;
+  font-size: 0.94em;
+  color: var(--dim);
+}
+.panel button {
+  min-height: var(--tap-lg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  text-align: left;
+  padding: 0 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.panel button .ph {
+  font-size: 0.76em;
+  color: var(--dim);
+}
+
+/* ── 시트 · 스낵바 ── */
+.sheetwrap {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  border: 0;
+  padding: 0;
+}
+.sheet {
+  width: 100%;
+  max-height: 82%;
+  overflow: auto;
+  background: var(--paper);
+  border-radius: 16px 16px 0 0;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sheet h3 {
+  margin: 2px 0 6px;
+  font-size: 1.02em;
+}
+.opt {
+  min-height: var(--tap-lg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  text-align: left;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.opt.primary {
+  border-color: var(--brand);
+  color: var(--brand);
+  font-weight: 700;
+}
+.opt small {
+  color: var(--dim);
+  font-size: 0.76em;
+  font-weight: 400;
+}
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.pad button {
+  min-height: var(--tap-lg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  font-size: 1.2em;
+}
+.padval {
+  min-height: var(--tap-lg);
+  border: 2px solid var(--brand);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 1.15em;
+  font-weight: 700;
+}
+
+.snack {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 60;
+  background: #16181d;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9em;
+}
+.snack span {
+  flex: 1;
+}
+.snack button {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #4a505a;
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* ── 설정 행 · 목록 카드 ── */
+.srow {
+  width: 100%;
+  min-height: var(--tap-lg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
+}
+.srow .lb {
+  flex: 1;
+}
+.srow .val {
+  color: var(--dim);
+  font-size: 0.88em;
+}
+.seg {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.seg button {
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--dim);
+}
+.seg button[aria-pressed='true'] {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 700;
+}
+
+.gcell {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  margin-bottom: 8px;
+  text-align: left;
+}
+.gcell canvas {
+  flex: 0 0 104px;
+  width: 104px;
+  aspect-ratio: 4/3;
+  border-radius: 8px;
+  background: #ccc;
+  display: block;
+}
+.gcell .cap {
+  flex: 1;
+  min-width: 0;
+}
+.gcell .cap b {
+  display: block;
+}
+.gcell .cap span {
+  font-size: 0.84em;
+  color: var(--dim);
+}
+.warn {
+  color: var(--bad);
+  font-weight: 700;
+  display: block;
+}
+/* 미입력 표시 칩 — 카드 오른쪽 끝. 글자를 못 읽어도 눈에 띄어야 한다 */
+.gcell .mk {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  color: var(--bad);
+  font-size: 1.2em;
+}
+
+.note {
+  color: var(--dim);
+  font-size: 0.86em;
+  margin: 6px 0 12px;
+}
+.note code {
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
+/* ── 설정 그룹 (app.html sgrp/gh 대응) ── */
+.sgrp {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  background: var(--paper);
+}
+.gh {
+  padding: 8px 12px;
+  background: #f6f8fa;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.82em;
+  color: var(--dim);
+  font-weight: 700;
+}
+.srow2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.srow2:last-child {
+  border-bottom: 0;
+}
+.srow2.col {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.srow2 .lb {
+  flex: 1;
+  font-size: 0.94em;
+}
+.srow2.col .lb {
+  flex: 0 0 auto;
+  color: var(--dim);
+  font-size: 0.86em;
+}
+.srow2 .val {
+  color: var(--dim);
+  font-size: 0.88em;
+}
+.sgrp .srow {
+  border-bottom: 1px solid var(--line);
+}
+.sgrp .srow:last-child {
+  border-bottom: 0;
+}
+.chip {
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  font: inherit;
+  color: inherit;
+  max-width: 100%;
+}
+
+/* ── 표 항목 관리 ── */
+.sect {
+  margin: 18px 0 8px;
+  font-size: 0.82em;
+  color: var(--dim);
+  font-weight: 700;
+}
+.fprev {
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--paper);
+}
+.fprev .tr {
+  display: flex;
+  border-top: 1px solid var(--line);
+  min-height: 34px;
+}
+.fprev .tr:first-child {
+  border-top: 0;
+}
+.fprev .tk {
+  flex: 0 0 44%;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  border-right: 1px solid var(--line);
+  color: var(--dim);
+  font-size: 0.88em;
+}
+.fprev .tv {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  font-size: 0.88em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar {
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+.bar.fold {
+  background: #d92d20;
+}
+.bar.file {
+  background: var(--brand);
+}
+
+.fitem {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+.fitem .nm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.94em;
+}
+.fitem .nm small {
+  color: var(--dim);
+  font-size: 0.76em;
+}
+.mini {
+  flex: 0 0 auto;
+  width: 34px;
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.mini[disabled] {
+  opacity: 0.3;
+}
+.tag {
+  flex: 0 0 auto;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--dim);
+  font-size: 0.78em;
+}
+.tag.fold {
+  border-color: #d92d20;
+  background: #fde7e5;
+  color: #a51c14;
+  font-weight: 700;
+}
+.tag.file {
+  border-color: var(--brand);
+  background: #e4edfd;
+  color: #0f4bb0;
+  font-weight: 700;
+}
+.onoff {
+  flex: 0 0 auto;
+  min-width: 56px;
+  min-height: var(--tap);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #eceff3;
+  color: var(--dim);
+  font-size: 0.82em;
+}
+.onoff.on {
+  background: #d0e2ff;
+  border-color: #a7c4f5;
+  color: #0f4bb0;
+  font-weight: 700;
+}
+.onoff.req {
+  background: #c9e6d3;
+  border-color: #9ed3b3;
+  color: #1a7f37;
+  font-weight: 700;
+}
+.cmp {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+.cmp div {
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+}
+.cmp div:first-child {
+  border-top: 0;
+}
+.cmp b {
+  display: block;
+}
+.cmp small {
+  color: var(--dim);
+}
