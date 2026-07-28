@@ -6,23 +6,29 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useReducer,
+  useRef,
+  useState,
   type Dispatch,
   type ReactNode,
 } from 'react'
 import { DEFAULT_FORM } from '../../core/defaultForm'
 import { snapshotFields, type Fields, type FormRow, type Photo } from '../../core/models'
 import { DEFAULT_STYLE, type StampStyle } from '../../core/renderStamp'
-import type { CapturedImage } from '../../platform/ports'
+import type { CapturedImage, StoredPhoto } from '../../platform/ports'
+import { usePorts } from './ports'
 
 export type Screen = 'home' | 'main' | 'list' | 'export' | 'settings' | 'form'
 
-/** 화면에 그릴 원본을 들고 있는 Photo. 단계 3에서 파일 경로로 대체된다 */
+/** 화면에 그릴 것과 저장할 원본을 함께 들고 있는 Photo */
 export interface UiPhoto extends Photo {
   image: CanvasImageSource
   width: number
   height: number
+  /** 원본 바이트. 저장할 때 그대로 쓴다 */
+  blob: Blob
 }
 
 /** 일괄 적용을 되돌리기 위한 최소 스냅샷 (03 §2.7) */
@@ -93,8 +99,12 @@ export interface State {
   bigText: boolean
 }
 
+/** 저장소에 남겨 두는 설정 — 사진이 아닌 것들 */
+export type Settings = Pick<State, 'form' | 'style' | 'cfg' | 'slate' | 'history'>
+
 export type Action =
   | { type: 'go'; screen: Screen }
+  | { type: 'hydrate'; photos: UiPhoto[]; trash: UiPhoto[]; settings: Settings | null }
   | { type: 'addPhoto'; image: CapturedImage; note?: string }
   | { type: 'setValue'; key: string; value: string }
   | { type: 'move'; delta: number }
@@ -178,6 +188,16 @@ export function reducer(s: State, a: Action): State {
     case 'go':
       return { ...s, screen: a.screen, sheet: null }
 
+    case 'hydrate':
+      // 저장된 게 없으면 `settings` 는 null — 그때는 기본값 그대로 간다
+      return {
+        ...s,
+        ...(a.settings ?? {}),
+        photos: a.photos,
+        trash: a.trash,
+        cur: Math.max(0, a.photos.length - 1),
+      }
+
     case 'addPhoto': {
       // 필수값이 비어도 막지 않는다 (03 §4.3)
       const base = currentFields(s)
@@ -187,14 +207,15 @@ export function reducer(s: State, a: Action): State {
         templateId: 'default',
         phase: base.phase ?? '',
         fields: snapshotFields(s.form, base, { date: todayISO() }),
-        originalPath: '',
-        sha256: '',
+        originalPath: '', // 브라우저엔 파일시스템이 없다. 단계 4 네이티브에서 채운다
+        sha256: a.image.sha256,
         thumb320Path: '',
         rev: 1,
         exportedRev: 0,
         image: a.image.source,
         width: a.image.width,
         height: a.image.height,
+        blob: a.image.blob,
       }
       const photos = [...s.photos, photo]
       return {
@@ -395,8 +416,82 @@ export function reducer(s: State, a: Action): State {
 
 const Ctx = createContext<{ state: State; dispatch: Dispatch<Action> } | null>(null)
 
+/** 저장할 것만 남긴다 — 화면용 비트맵과 원본은 IndexedDB 쪽 몫이다 */
+function toPhoto({ image: _i, width: _w, height: _h, blob: _b, ...photo }: UiPhoto): Photo {
+  return photo
+}
+
+function toUi(t: StoredPhoto): UiPhoto {
+  return { ...t.photo, image: t.image, width: t.width, height: t.height, blob: t.blob }
+}
+
+/**
+ * 다시 써야 하는지 가르는 서명.
+ * 값 수정은 `rev`, 내보내기는 `exportedRev`, 삭제는 `deletedAt` 만 움직인다 —
+ * 이 셋이 그대로면 저장소에 있는 것과 같다.
+ */
+const sign = (p: UiPhoto) => `${p.rev}|${p.exportedRev}|${p.deletedAt ?? ''}`
+
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const ports = usePorts()
   const [state, dispatch] = useReducer(reducer, initialState)
+  /** 복원이 끝나기 전에 저장하면 기본값이 저장분을 덮어쓴다 */
+  const [ready, setReady] = useState(false)
+  /** 저장소에 이미 쓴 것 — id → 서명 */
+  const written = useRef(new Map<string, string>())
+
+  // 부팅 복원
+  useEffect(() => {
+    let alive = true
+    const boot = async () => {
+      try {
+        const stored = await ports.db.load()
+        if (!alive) return
+        for (const t of stored) written.current.set(t.photo.id, sign(toUi(t)))
+        dispatch({
+          type: 'hydrate',
+          photos: stored.filter((t) => !t.photo.deletedAt).map(toUi),
+          trash: stored.filter((t) => t.photo.deletedAt).map(toUi),
+          settings: ports.storage.get<Settings>('settings'),
+        })
+      } finally {
+        // 저장소가 막혀도(사파리 프라이빗 등) 앱은 굴러가야 한다
+        if (alive) setReady(true)
+      }
+    }
+    void boot()
+    return () => {
+      alive = false
+    }
+  }, [ports])
+
+  // 사진 영속화 — 바뀐 것만 쓰고, 원본은 처음 한 번만 쓴다
+  useEffect(() => {
+    if (!ready) return
+    const live = [...state.photos, ...state.trash]
+    const now = new Set(live.map((p) => p.id))
+    for (const p of live) {
+      const s = sign(p)
+      if (written.current.get(p.id) === s) continue
+      const first = !written.current.has(p.id)
+      written.current.set(p.id, s)
+      void ports.db.save(toPhoto(p), first ? p.blob : undefined)
+    }
+    for (const id of [...written.current.keys()]) {
+      if (now.has(id)) continue
+      written.current.delete(id)
+      void ports.db.remove(id)
+    }
+  }, [ready, ports, state.photos, state.trash])
+
+  // 설정 영속화 — 사진에 견주면 작아서 통째로 쓴다.
+  // `state` 통째로 걸면 사진을 넘길 때마다(cur·snack) 다시 쓴다. 저장할 것만 떼어 건다
+  const { form, style, cfg, slate, history } = state
+  useEffect(() => {
+    if (!ready) return
+    ports.storage.set<Settings>('settings', { form, style, cfg, slate, history })
+  }, [ready, ports, form, style, cfg, slate, history])
+
   const value = useMemo(() => ({ state, dispatch }), [state])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

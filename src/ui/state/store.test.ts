@@ -7,7 +7,13 @@ import { describe, expect, it } from 'vitest'
 import { initialState, previewFields, reducer, type Action, type State } from './store'
 import type { CapturedImage } from '../../platform/ports'
 
-const img: CapturedImage = { width: 1200, height: 900, source: {} as CanvasImageSource }
+const img: CapturedImage = {
+  width: 1200,
+  height: 900,
+  source: {} as CanvasImageSource,
+  blob: new Blob(),
+  sha256: 'deadbeef',
+}
 
 const run = (s: State, ...actions: Action[]) => actions.reduce(reducer, s)
 
