@@ -1,7 +1,7 @@
 /**
  * 데이터 모델 — 순수 TypeScript. 플랫폼·DOM 의존 없음.
  *
- * 정본: D:\workspace_local\Document\사진보드판\02.아키텍처.md §3
+ * 정본: D:\workspace_local\Document\ilboja\02.아키텍처.md §3
  *      = 03.화면-표준스펙.md §3 (두 문서가 항상 같아야 한다)
  */
 
