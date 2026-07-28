@@ -17,19 +17,9 @@ import {
 import { DEFAULT_FORM } from '../../core/defaultForm'
 import { snapshotFields, type Fields, type FormRow, type Photo } from '../../core/models'
 import { DEFAULT_STYLE, type StampStyle } from '../../core/renderStamp'
-import type { CapturedImage, StoredPhoto } from '../../platform/ports'
 import { usePorts } from './ports'
 
 export type Screen = 'home' | 'main' | 'list' | 'export' | 'settings' | 'form'
-
-/** 화면에 그릴 것과 저장할 원본을 함께 들고 있는 Photo */
-export interface UiPhoto extends Photo {
-  image: CanvasImageSource
-  width: number
-  height: number
-  /** 원본 바이트. 저장할 때 그대로 쓴다 */
-  blob: Blob
-}
 
 /** 일괄 적용을 되돌리기 위한 최소 스냅샷 (03 §2.7) */
 export interface BulkUndo {
@@ -84,8 +74,9 @@ export interface State {
   form: FormRow[]
   style: StampStyle
   cfg: Config
-  photos: UiPhoto[]
-  trash: UiPhoto[]
+  /** 메타만 든다. 펼친 사진은 `ui/state/images` 캐시가 상한을 두고 따로 관리한다 (02 §4) */
+  photos: Photo[]
+  trash: Photo[]
   cur: number
   /** 사진이 없을 때 다음 촬영에 쓸 값 */
   slate: Fields
@@ -95,7 +86,7 @@ export interface State {
   snack: Snack | null
   bulkUndo: BulkUndo | null
   /** 방금 지운 사진 — 되돌리면 원래 자리로 돌아간다 */
-  lastRemoved: { photo: UiPhoto; at: number } | null
+  lastRemoved: { photo: Photo; at: number } | null
   bigText: boolean
 }
 
@@ -104,8 +95,9 @@ export type Settings = Pick<State, 'form' | 'style' | 'cfg' | 'slate' | 'history
 
 export type Action =
   | { type: 'go'; screen: Screen }
-  | { type: 'hydrate'; photos: UiPhoto[]; trash: UiPhoto[]; settings: Settings | null }
-  | { type: 'addPhoto'; image: CapturedImage; note?: string }
+  | { type: 'hydrate'; photos: Photo[]; trash: Photo[]; settings: Settings | null }
+  /** 바이트는 이미 저장소로 갔다. 여기 오는 건 메타뿐 */
+  | { type: 'addPhoto'; id: string; width: number; height: number; sha256: string; note?: string }
   | { type: 'setValue'; key: string; value: string }
   | { type: 'move'; delta: number }
   | { type: 'goto'; index: number }
@@ -201,21 +193,19 @@ export function reducer(s: State, a: Action): State {
     case 'addPhoto': {
       // 필수값이 비어도 막지 않는다 (03 §4.3)
       const base = currentFields(s)
-      const photo: UiPhoto = {
-        id: `p${Date.now()}_${s.photos.length}`,
+      const photo: Photo = {
+        id: a.id,
         capturedAt: new Date().toISOString(),
         templateId: 'default',
         phase: base.phase ?? '',
         fields: snapshotFields(s.form, base, { date: todayISO() }),
-        originalPath: '', // 브라우저엔 파일시스템이 없다. 단계 4 네이티브에서 채운다
-        sha256: a.image.sha256,
+        width: a.width,
+        height: a.height,
+        originalPath: '', // 브라우저엔 파일시스템이 없다. 단계 4b 네이티브에서 채운다
+        sha256: a.sha256,
         thumb320Path: '',
         rev: 1,
         exportedRev: 0,
-        image: a.image.source,
-        width: a.image.width,
-        height: a.image.height,
-        blob: a.image.blob,
       }
       const photos = [...s.photos, photo]
       return {
@@ -416,21 +406,12 @@ export function reducer(s: State, a: Action): State {
 
 const Ctx = createContext<{ state: State; dispatch: Dispatch<Action> } | null>(null)
 
-/** 저장할 것만 남긴다 — 화면용 비트맵과 원본은 IndexedDB 쪽 몫이다 */
-function toPhoto({ image: _i, width: _w, height: _h, blob: _b, ...photo }: UiPhoto): Photo {
-  return photo
-}
-
-function toUi(t: StoredPhoto): UiPhoto {
-  return { ...t.photo, image: t.image, width: t.width, height: t.height, blob: t.blob }
-}
-
 /**
  * 다시 써야 하는지 가르는 서명.
  * 값 수정은 `rev`, 내보내기는 `exportedRev`, 삭제는 `deletedAt` 만 움직인다 —
  * 이 셋이 그대로면 저장소에 있는 것과 같다.
  */
-const sign = (p: UiPhoto) => `${p.rev}|${p.exportedRev}|${p.deletedAt ?? ''}`
+const sign = (p: Photo) => `${p.rev}|${p.exportedRev}|${p.deletedAt ?? ''}`
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const ports = usePorts()
@@ -445,13 +426,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let alive = true
     const boot = async () => {
       try {
+        // 메타만 읽는다. 사진 바이트는 화면이 필요로 할 때 한 장씩 (02 §4)
         const stored = await ports.db.load()
         if (!alive) return
-        for (const t of stored) written.current.set(t.photo.id, sign(toUi(t)))
+        for (const p of stored) written.current.set(p.id, sign(p))
         dispatch({
           type: 'hydrate',
-          photos: stored.filter((t) => !t.photo.deletedAt).map(toUi),
-          trash: stored.filter((t) => t.photo.deletedAt).map(toUi),
+          photos: stored.filter((p) => !p.deletedAt),
+          trash: stored.filter((p) => p.deletedAt),
           settings: ports.storage.get<Settings>('settings'),
         })
       } finally {
@@ -465,7 +447,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [ports])
 
-  // 사진 영속화 — 바뀐 것만 쓰고, 원본은 처음 한 번만 쓴다
+  // 메타 영속화 — 바뀐 것만. 원본·썸네일은 촬영 시점에 이미 저장소로 갔다
   useEffect(() => {
     if (!ready) return
     const live = [...state.photos, ...state.trash]
@@ -473,9 +455,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     for (const p of live) {
       const s = sign(p)
       if (written.current.get(p.id) === s) continue
-      const first = !written.current.has(p.id)
       written.current.set(p.id, s)
-      void ports.db.save(toPhoto(p), first ? p.blob : undefined)
+      void ports.db.saveMeta(p)
     }
     for (const id of [...written.current.keys()]) {
       if (now.has(id)) continue

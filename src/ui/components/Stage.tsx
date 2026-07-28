@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react'
 import { rowsForRender } from '../../core/models'
 import { renderStamp } from '../../core/renderStamp'
 import { useStore } from '../state/store'
+import { usePhotoImage } from '../state/images'
 
 const SWIPE_PX = 60
 
@@ -17,22 +18,19 @@ export default function Stage() {
 
   const photo = state.photos[state.cur]
   const has = state.photos.length > 0
+  // 이미 줄여서 펼쳐진 것이 온다. 아직 준비 전이면 null (02 §4)
+  const image = usePhotoImage(photo, 'original')
 
   useEffect(() => {
     const cv = ref.current
     const c = cv?.getContext('2d')
-    if (!cv || !c || !photo) return
+    if (!cv || !c || !photo || !image) return
 
-    // 긴 변 1920 로 줄여 그린다. 원본 비트맵을 그대로 들면 저가폰이 죽는다(실측 100장 = 4,651MB)
-    const k = Math.min(1, 1920 / Math.max(photo.width, photo.height))
-    const W = Math.round(photo.width * k)
-    const H = Math.round(photo.height * k)
-    cv.width = W
-    cv.height = H
-
-    c.drawImage(photo.image, 0, 0, W, H)
-    renderStamp(c, W, H, rowsForRender(state.form, photo.fields), state.style)
-  }, [photo, state.form, state.style])
+    cv.width = image.width
+    cv.height = image.height
+    c.drawImage(image, 0, 0)
+    renderStamp(c, cv.width, cv.height, rowsForRender(state.form, photo.fields), state.style)
+  }, [photo, image, state.form, state.style])
 
   const move = (d: number) => dispatch({ type: 'move', delta: d })
 
@@ -51,6 +49,19 @@ export default function Stage() {
       {has ? (
         <>
           <canvas ref={ref} />
+          {!image && (
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                display: 'grid',
+                placeItems: 'center',
+                color: 'var(--dim)',
+              }}
+            >
+              불러오는 중…
+            </div>
+          )}
           <div className="pos">
             {state.cur + 1} / {state.photos.length}장
           </div>

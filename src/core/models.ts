@@ -39,6 +39,13 @@ export interface Photo {
   phase: string
   /** 촬영 시점에 확정된 표 값 전부. 표는 이것만 보고 그린다 */
   fields: Fields
+  /**
+   * 원본 픽셀 크기(EXIF 회전 적용 후).
+   * 사진을 펼치지 않은 채로 자리를 잡으려면 크기를 메타로 알아야 한다 —
+   * 크기를 알려고 펼치면 메모리를 아끼려는 목적 자체가 무너진다.
+   */
+  width: number
+  height: number
   originalPath: string
   sha256: string
   thumb320Path: string

@@ -5,15 +5,16 @@
 
 import { describe, expect, it } from 'vitest'
 import { initialState, previewFields, reducer, type Action, type State } from './store'
-import type { CapturedImage } from '../../platform/ports'
 
-const img: CapturedImage = {
+/** 촬영 결과 메타. 사진 바이트는 상태에 들어오지 않는다 (02 §4) */
+let seq = 0
+const shot = (): Action => ({
+  type: 'addPhoto',
+  id: `p${++seq}`,
   width: 1200,
   height: 900,
-  source: {} as CanvasImageSource,
-  blob: new Blob(),
   sha256: 'deadbeef',
-}
+})
 
 const run = (s: State, ...actions: Action[]) => actions.reduce(reducer, s)
 
@@ -24,7 +25,7 @@ function withPhotos(n: number): State {
     { type: 'setValue', key: 'ho', value: '101동 1502호' },
     { type: 'setValue', key: 'work', value: '누수 보수' },
   )
-  for (let i = 0; i < n; i++) s = reducer(s, { type: 'addPhoto', image: img })
+  for (let i = 0; i < n; i++) s = reducer(s, shot())
   return s
 }
 
@@ -32,7 +33,7 @@ const workOf = (s: State) => s.photos.map((p) => p.fields.work)
 
 describe('촬영', () => {
   it('필수값이 비어도 사진은 찍힌다 (촬영 게이트 없음)', () => {
-    const s = reducer(initialState, { type: 'addPhoto', image: img })
+    const s = reducer(initialState, shot())
     expect(s.photos).toHaveLength(1)
     expect(s.photos[0].fields.ho).toBe('')
     expect(s.sheet).toBeNull() // 입력 시트가 끼어들지 않는다
@@ -66,7 +67,7 @@ describe('previewFields — 화면에 보여줄 값', () => {
 
   it('촬영 전 미리보기가 실제로 찍힐 값과 같다', () => {
     const before = previewFields(initialState)
-    const after = reducer(initialState, { type: 'addPhoto', image: img }).photos[0].fields
+    const after = reducer(initialState, shot()).photos[0].fields
     expect(after).toEqual(before)
   })
 
@@ -273,6 +274,6 @@ describe('서식 관리', () => {
   it('기본값을 바꿔도 이미 찍은 사진은 안 바뀐다', () => {
     const s = run(withPhotos(2), { type: 'setDefault', key: 'worker', value: '김철수' })
     expect(s.photos.every((p) => p.fields.worker === '홍길동')).toBe(true)
-    expect(reducer(s, { type: 'addPhoto', image: img }).photos[2].fields.worker).toBe('김철수')
+    expect(reducer(s, shot()).photos[2].fields.worker).toBe('김철수')
   })
 })

@@ -8,14 +8,15 @@ import { useEffect, useRef } from 'react'
 import { rowsForRender } from '../../core/models'
 import { renderStamp, type StampStyle } from '../../core/renderStamp'
 import { missingRequired } from '../../core/validate'
-import { useStore, type UiPhoto } from '../state/store'
-import type { FormRow } from '../../core/models'
+import { useStore } from '../state/store'
+import { usePhotoImage } from '../state/images'
+import type { FormRow, Photo } from '../../core/models'
 
 export default function List() {
   const { state, dispatch } = useStore()
 
   // 동/호수로 자동 묶음
-  const groups = new Map<string, { photo: UiPhoto; index: number }[]>()
+  const groups = new Map<string, { photo: Photo; index: number }[]>()
   state.photos.forEach((photo, index) => {
     const key = photo.fields.ho?.trim() || '—'
     if (!groups.has(key)) groups.set(key, [])
@@ -73,31 +74,29 @@ export default function List() {
 }
 
 /**
- * 썸네일 — 원본이 아니라 축소본을 그린다(메모리 보호). 320px 캐시는 단계 4에서 파일로.
+ * 썸네일 — 촬영 때 만들어 둔 **320px 파일**을 그린다. 원본에서 그리면 목록을 여는 순간
+ * 사진 전부를 펼치게 돼서 윈도우잉이 무효가 된다 (02 §4).
  *
  * **표를 합성해서 그린다.** 표 없이 사진만 보면 어느 게 어느 건지 구분이 안 된다 —
  * 목록의 존재 이유가 "많을 때 건너뛰기"인데 구분이 안 되면 쓸모가 없다.
  */
-function Thumb({
-  photo,
-  form,
-  style,
-}: {
-  photo: UiPhoto
-  form: FormRow[]
-  style: StampStyle
-}) {
+function Thumb({ photo, form, style }: { photo: Photo; form: FormRow[]; style: StampStyle }) {
   const ref = useRef<HTMLCanvasElement>(null)
+  const image = usePhotoImage(photo, 'thumb')
+
+  // 크기는 메타로 안다 — 사진이 아직 안 왔어도 자리가 안 흔들린다
+  const w = 320
+  const h = Math.round((320 * photo.height) / photo.width)
 
   useEffect(() => {
     const cv = ref.current
     const c = cv?.getContext('2d')
-    if (!cv || !c) return
-    cv.width = 320
-    cv.height = Math.round((320 * photo.height) / photo.width)
-    c.drawImage(photo.image, 0, 0, cv.width, cv.height)
-    renderStamp(c, cv.width, cv.height, rowsForRender(form, photo.fields), style)
-  }, [photo, form, style])
+    if (!cv || !c || !image) return
+    cv.width = w
+    cv.height = h
+    c.drawImage(image, 0, 0, w, h)
+    renderStamp(c, w, h, rowsForRender(form, photo.fields), style)
+  }, [photo, image, form, style, w, h])
 
-  return <canvas ref={ref} />
+  return <canvas ref={ref} width={w} height={h} />
 }

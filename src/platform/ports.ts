@@ -6,19 +6,31 @@
 
 import type { Photo } from '../core/models'
 
+/**
+ * 화면에 그릴 긴 변 상한. 원본(4080×3060)을 그대로 펼치면 장당 50MB,
+ * 여기까지 줄이면 11MB다. 원본 파일은 고화질 그대로 보관되고 내보내기는 거기서 다시 그린다 (02 §4).
+ */
+export const DISPLAY_EDGE = 1920
+
+/** 목록 썸네일 긴 변. 100장 ≈ 30MB */
+export const THUMB_EDGE = 320
+
 export type PhotoSource =
   | 'camera' // 앱 카메라
   | 'system' // 시스템 카메라 (동산 조리개 버튼 대응. 광각·줌)
   | 'gallery' // 폰 사진 가져오기
 
-/** 촬영 결과. 원본은 불변이고, 화면에는 이 비트맵을 그린다 */
+/** 촬영 결과. 원본은 불변이고, 화면에는 줄여서 펼친 비트맵을 그린다 */
 export interface CapturedImage {
+  /** 원본 픽셀 크기(EXIF 회전 적용 후). 화면용 비트맵 크기가 아니다 */
   width: number
   height: number
-  /** 캔버스에 바로 그릴 수 있는 것 */
-  source: CanvasImageSource
+  /** 화면용으로 **줄여서** 펼친 것. 원본을 통째로 펼치지 않는다 */
+  source: ImageBitmap
   /** 원본 바이트 그대로. 저장은 이걸 쓴다 — 다시 인코딩하지 않는다(비파괴) */
   blob: Blob
+  /** 목록용 320px 썸네일. 목록이 원본에서 그리면 결국 전량을 펼치게 된다 */
+  thumb: Blob
   /** 원본 무결성 확인용. 비보안 컨텍스트(http)에서는 빈 문자열 */
   sha256: string
 }
@@ -28,24 +40,27 @@ export interface CameraPort {
   capture(source: PhotoSource): Promise<CapturedImage | null>
 }
 
-/** 저장소에서 되살린 사진 한 장 — 메타 + 원본 + 그릴 수 있게 디코드된 것 */
-export interface StoredPhoto {
-  photo: Photo
-  blob: Blob
-  image: CanvasImageSource
-  width: number
-  height: number
+export type BlobKind = 'original' | 'thumb'
+
+export interface PhotoBlobs {
+  original: Blob
+  thumb: Blob
 }
 
 /**
  * 사진 메타와 원본의 영속 저장 (03 §5.3 `Db`).
- * 브라우저=IndexedDB, 안드로이드=SQLite + Filesystem (단계 4). 계약은 같다.
+ * 브라우저=IndexedDB, 안드로이드=SQLite + Filesystem (단계 4b). 계약은 같다.
+ *
+ * **바이트는 메타와 따로 오간다.** 부팅 때 전부 읽어 펼치면 100장에 4.8GB —
+ * 화면을 그리기도 전에 죽는다(02 §4). 메타만 먼저 읽고, 바이트는 보여 줄 때 하나씩 꺼낸다.
  */
 export interface DbPort {
-  /** 앱 시작 시 전부. 휴지통 것(`deletedAt`)도 함께 온다 */
-  load(): Promise<StoredPhoto[]>
-  /** 메타 저장(덮어쓰기). `blob` 은 처음 한 번만 넘긴다 — 원본은 다시 쓰지 않는다 */
-  save(photo: Photo, blob?: Blob): Promise<void>
+  /** 앱 시작 시 **메타만** 전부. 휴지통 것(`deletedAt`)도 함께 온다 */
+  load(): Promise<Photo[]>
+  saveMeta(photo: Photo): Promise<void>
+  /** 원본·썸네일은 사진이 들어올 때 한 번만 쓰고 그대로 둔다(비파괴) */
+  putBlobs(id: string, blobs: PhotoBlobs): Promise<void>
+  getBlob(id: string, kind: BlobKind): Promise<Blob | null>
   remove(id: string): Promise<void>
 }
 

@@ -8,6 +8,7 @@ import EditTable from '../components/EditTable'
 import Stage from '../components/Stage'
 import { useStore } from '../state/store'
 import { usePorts } from '../state/ports'
+import { primeImage } from '../state/images'
 import type { PhotoSource } from '../../platform/ports'
 
 type Side = 'left' | 'right' | null
@@ -25,9 +26,19 @@ export default function Main() {
 
     const image = await ports.camera.capture(source)
     if (!image) return // 사용자가 취소
+
+    // 사진 바이트는 상태에 넣지 않는다 — 곧장 저장소로 보내고 메타만 dispatch (02 §4).
+    // 방금 펼친 것은 캐시에 얹어 둔다. 바로 다시 읽어 펼치는 건 낭비다
+    const id = `p${Date.now()}_${state.photos.length}`
+    await ports.db.putBlobs(id, { original: image.blob, thumb: image.thumb })
+    primeImage(id, 'original', image.source)
+
     dispatch({
       type: 'addPhoto',
-      image,
+      id,
+      width: image.width,
+      height: image.height,
+      sha256: image.sha256,
       note: source === 'gallery' ? '갤러리에서 1장 불러옴' : undefined,
     })
   }
