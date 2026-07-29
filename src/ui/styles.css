@@ -361,10 +361,6 @@ button {
   object-fit: cover;
   display: block;
 }
-.cam-on .arena {
-  background: transparent;
-}
-
 .stage {
   flex: 1;
   min-width: 0;

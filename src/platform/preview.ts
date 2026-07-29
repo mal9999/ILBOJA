@@ -25,11 +25,17 @@ export const cameraPreview: PreviewPort = {
       width: Math.round(rect.width),
       height: Math.round(rect.height),
       /**
-       * 우리 화면이 프리뷰 **위에** 그려져야 한다.
-       * 프리뷰를 앞에 두면 ① 입력 시트가 가려져 표를 못 고치고
-       * ② 프리뷰를 탭해 큰 이미지 갤러리로 들어가는 길이 막힌다.
+       * 프리뷰를 **앞에** 그린다.
+       *
+       * 처음엔 뒤에 그렸다(`toBack: true`). 우리 화면이 위에 오면 입력 시트도 가려지지 않고
+       * 프리뷰를 탭해 큰 이미지로 들어가는 길도 열리기 때문이다. 그런데 그 방식은
+       * **WebView 자체가 투명해야** 카메라가 비치고, 기기마다 다르다 —
+       * 실기기에서 화면이 하얗게만 나왔다 (2026-07-29).
+       *
+       * 앞에 그리면 확실히 보인다. 대신 프리뷰가 아레나를 덮으므로,
+       * 시트·사이드패널이 열릴 때는 프리뷰를 잠시 끈다(Main 이 관리).
        */
-      toBack: true,
+      toBack: false,
       parent: PREVIEW_PARENT,
       className: 'preview-video',
       disableAudio: true,

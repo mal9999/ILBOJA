@@ -62,43 +62,65 @@ export default function Main() {
     await addPhoto(image, source === 'gallery' ? '갤러리에서 1장 불러옴' : undefined)
   }
 
-  const startCam = async () => {
+  const startCam = () => {
     setSide(null)
-    const box = arena.current?.getBoundingClientRect()
-    if (!box) return
-    try {
-      await ports.preview.start({ x: box.left, y: box.top, width: box.width, height: box.height })
-      setCamOn(true)
-    } catch (e) {
-      const why = e instanceof Error ? e.message : String(e)
-      dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
-    }
+    setCamOn(true)
   }
-
-  const stopCam = async () => {
-    setCamOn(false)
-    await ports.preview.stop()
-  }
+  const stopCam = () => setCamOn(false)
 
   /** 셔터 — 앱을 벗어나지 않는다. 찍고 나서도 프리뷰가 그대로라 바로 다음 장을 찍을 수 있다 */
   const shutter = async () => {
     try {
       const image = await ports.preview.shoot()
-      if (image) await addPhoto(image)
+      if (!image) {
+        // 조용히 넘어가면 현장에서 "눌렀는데 아무 일도 안 난다"가 된다. 반드시 말한다
+        dispatch({ type: 'snack', snack: { msg: '촬영 결과가 비어 있습니다 — 다시 눌러 주세요' } })
+        return
+      }
+      await addPhoto(image)
     } catch (e) {
       const why = e instanceof Error ? e.message : String(e)
       dispatch({ type: 'snack', snack: { msg: `촬영 실패 — ${why}` } })
     }
   }
 
-  // 프리뷰는 네이티브 뷰라 화면을 떠나도 저절로 사라지지 않는다. 반드시 꺼야 한다
-  useEffect(() => {
-    document.documentElement.classList.toggle('cam-on', camOn)
-    return () => {
-      document.documentElement.classList.remove('cam-on')
-    }
-  }, [camOn])
+  /**
+   * 프리뷰 수명은 여기 한 곳에서만 관리한다.
+   * 프리뷰가 아레나를 **덮으므로**, 시트나 사이드패널이 열릴 때는 잠시 꺼야 표를 고칠 수 있다.
+   */
+  const covered = state.sheet !== null || side !== null
+  const wantCam = camOn && !covered
 
+  useEffect(() => {
+    let alive = true
+    const run = async () => {
+      if (!wantCam) {
+        await ports.preview.stop()
+        return
+      }
+      const box = arena.current?.getBoundingClientRect()
+      if (!box) return
+      try {
+        await ports.preview.start({
+          x: box.left,
+          y: box.top,
+          width: box.width,
+          height: box.height,
+        })
+      } catch (e) {
+        if (!alive) return
+        const why = e instanceof Error ? e.message : String(e)
+        dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
+        setCamOn(false)
+      }
+    }
+    void run()
+    return () => {
+      alive = false
+    }
+  }, [wantCam, ports, dispatch])
+
+  // 네이티브 뷰라 화면을 떠나도 저절로 사라지지 않는다. 반드시 꺼야 한다
   useEffect(() => {
     return () => {
       void ports.preview.stop()
