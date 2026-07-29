@@ -30,7 +30,7 @@ export default function Main() {
     // 사진 바이트는 상태에 넣지 않는다 — 곧장 저장소로 보내고 메타만 dispatch (02 §4).
     // 방금 펼친 것은 캐시에 얹어 둔다. 바로 다시 읽어 펼치는 건 낭비다
     const id = `p${Date.now()}_${state.photos.length}`
-    await ports.db.putBlobs(id, { original: image.blob, thumb: image.thumb })
+    const paths = await ports.db.putBlobs(id, { original: image.blob, thumb: image.thumb })
     primeImage(id, 'original', image.source)
 
     dispatch({
@@ -39,6 +39,7 @@ export default function Main() {
       width: image.width,
       height: image.height,
       sha256: image.sha256,
+      paths,
       note: source === 'gallery' ? '갤러리에서 1장 불러옴' : undefined,
     })
   }

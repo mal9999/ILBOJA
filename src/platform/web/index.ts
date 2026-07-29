@@ -1,7 +1,7 @@
 /**
  * 브라우저(개발·PC)용 어댑터 모음.
  * 카메라는 File API, 사진 저장은 IndexedDB, 작은 값은 localStorage.
- * 단계 4~5에서 Capacitor(native)로 갈린다 — 바뀌는 건 이 폴더뿐이다.
+ * 안드로이드는 `platform/native` 가 이 중 몇 개만 갈아 끼운다.
  */
 
 import type { Ports, SharePort, StoragePort } from '../ports'
@@ -10,7 +10,7 @@ import { webDb } from './db'
 
 const PREFIX = 'ilboja:'
 
-const storage: StoragePort = {
+export const webStorage: StoragePort = {
   get<T>(key: string): T | null {
     try {
       const raw = localStorage.getItem(PREFIX + key)
@@ -28,10 +28,30 @@ const storage: StoragePort = {
   },
 }
 
-const share: SharePort = {
+export const webShare: SharePort = {
+  /** PC 에는 앱 저장폴더가 없다. 브라우저가 할 수 있는 건 다운로드다 */
+  async writeExport(relPath, blob) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    // 폴더 구조는 못 만든다. 경로를 파일명에 녹여 어디로 갈지는 보이게 한다
+    a.download = relPath.split('/').filter(Boolean).join('_')
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    // 곧바로 지우면 다운로드가 끊긴다
+    setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    return '브라우저 다운로드 폴더'
+  },
   async share() {
-    /* 단계 5에서 @capacitor/share. 지금은 화면에서 안내 스낵바만 띄운다 */
+    /* 단계 5에서 @capacitor/share */
   },
 }
 
-export const webPorts: Ports = { camera: webCamera, storage, db: webDb, share }
+export const webPorts: Ports = {
+  camera: webCamera,
+  storage: webStorage,
+  db: webDb,
+  share: webShare,
+}

@@ -51,14 +51,15 @@ function fakeCtx() {
       const fs = Number(/^(\d+)px/.exec(ctx.font)?.[1] ?? 10)
       return { width: text.length * fs * 0.5 }
     },
+    // 우리는 색을 문자열로만 넣는다. 타입은 캔버스에 맞춰 넓어져 있어 여기서 좁힌다
     fillRect(x, y, w, h) {
-      fillRects.push({ x, y, w, h, color: ctx.fillStyle })
+      fillRects.push({ x, y, w, h, color: String(ctx.fillStyle) })
     },
     strokeRect(x, y, w, h) {
-      strokeRects.push({ x, y, w, h, color: ctx.strokeStyle })
+      strokeRects.push({ x, y, w, h, color: String(ctx.strokeStyle) })
     },
     fillText(text, x, y) {
-      texts.push({ text, x, y, color: ctx.fillStyle })
+      texts.push({ text, x, y, color: String(ctx.fillStyle) })
     },
     beginPath() {},
     moveTo() {},

@@ -47,6 +47,12 @@ export interface PhotoBlobs {
   thumb: Blob
 }
 
+/** 저장된 자리. 파일이 아닌 곳(브라우저 IndexedDB)에 담기면 빈 문자열 */
+export interface StoredPaths {
+  original: string
+  thumb: string
+}
+
 /**
  * 사진 메타와 원본의 영속 저장 (03 §5.3 `Db`).
  * 브라우저=IndexedDB, 안드로이드=SQLite + Filesystem (단계 4b). 계약은 같다.
@@ -58,8 +64,8 @@ export interface DbPort {
   /** 앱 시작 시 **메타만** 전부. 휴지통 것(`deletedAt`)도 함께 온다 */
   load(): Promise<Photo[]>
   saveMeta(photo: Photo): Promise<void>
-  /** 원본·썸네일은 사진이 들어올 때 한 번만 쓰고 그대로 둔다(비파괴) */
-  putBlobs(id: string, blobs: PhotoBlobs): Promise<void>
+  /** 원본·썸네일은 사진이 들어올 때 한 번만 쓰고 그대로 둔다(비파괴). 반환 = `Photo` 에 적을 자리 */
+  putBlobs(id: string, blobs: PhotoBlobs): Promise<StoredPaths>
   getBlob(id: string, kind: BlobKind): Promise<Blob | null>
   remove(id: string): Promise<void>
 }
@@ -74,7 +80,14 @@ export interface StoragePort {
 }
 
 export interface SharePort {
-  /** 파일로 내보내기·공유. 지금은 안내만 하고 실제 전송은 단계 5 */
+  /**
+   * 표를 구운 사진 한 장을 저장한다. **경로 규칙은 `buildPath` 가 이미 정했고 여기서는 따르기만 한다.**
+   *
+   * @param relPath 저장 뿌리 기준 상대 경로 (`행복아파트/101동 1502호/누수보수_후_001.jpg`)
+   * @returns 사용자에게 보여줄 실제 저장 위치. 어디에 저장됐는지 말해 줄 수 있어야 한다
+   */
+  writeExport(relPath: string, blob: Blob): Promise<string>
+  /** 파일로 공유(카톡 등). 단계 5 */
   share(label: string): Promise<void>
 }
 

@@ -17,6 +17,7 @@ import {
 import { DEFAULT_FORM } from '../../core/defaultForm'
 import { snapshotFields, type Fields, type FormRow, type Photo } from '../../core/models'
 import { DEFAULT_STYLE, type StampStyle } from '../../core/renderStamp'
+import type { StoredPaths } from '../../platform/ports'
 import { usePorts } from './ports'
 
 export type Screen = 'home' | 'main' | 'list' | 'export' | 'settings' | 'form'
@@ -97,7 +98,15 @@ export type Action =
   | { type: 'go'; screen: Screen }
   | { type: 'hydrate'; photos: Photo[]; trash: Photo[]; settings: Settings | null }
   /** 바이트는 이미 저장소로 갔다. 여기 오는 건 메타뿐 */
-  | { type: 'addPhoto'; id: string; width: number; height: number; sha256: string; note?: string }
+  | {
+      type: 'addPhoto'
+      id: string
+      width: number
+      height: number
+      sha256: string
+      paths: StoredPaths
+      note?: string
+    }
   | { type: 'setValue'; key: string; value: string }
   | { type: 'move'; delta: number }
   | { type: 'goto'; index: number }
@@ -201,9 +210,10 @@ export function reducer(s: State, a: Action): State {
         fields: snapshotFields(s.form, base, { date: todayISO() }),
         width: a.width,
         height: a.height,
-        originalPath: '', // 브라우저엔 파일시스템이 없다. 단계 4b 네이티브에서 채운다
+        // 브라우저(IndexedDB)에서는 자리 이름이 없어 빈 문자열, 안드로이드에서는 파일 경로
+        originalPath: a.paths.original,
         sha256: a.sha256,
-        thumb320Path: '',
+        thumb320Path: a.paths.thumb,
         rev: 1,
         exportedRev: 0,
       }
@@ -420,6 +430,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   /** 저장소에 이미 쓴 것 — id → 서명 */
   const written = useRef(new Map<string, string>())
+  /** 기준선을 잡았는가. 첫 동기화는 쓰지도 지우지도 않는다 */
+  const seeded = useRef(false)
 
   // 부팅 복원
   useEffect(() => {
@@ -429,7 +441,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         // 메타만 읽는다. 사진 바이트는 화면이 필요로 할 때 한 장씩 (02 §4)
         const stored = await ports.db.load()
         if (!alive) return
-        for (const p of stored) written.current.set(p.id, sign(p))
         dispatch({
           type: 'hydrate',
           photos: stored.filter((p) => !p.deletedAt),
@@ -451,6 +462,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!ready) return
     const live = [...state.photos, ...state.trash]
+
+    // 첫 실행은 기준선만 잡고 아무것도 쓰지 않는다.
+    // ⚠️ 기준선을 `load()` 결과로 잡으면 안 된다. 복원 dispatch 가 어긋나 상태가 빈 채로
+    // 이 이펙트가 돌면 "사용자가 전부 지웠다"로 읽혀 **저장된 사진을 통째로 지운다**(실제로 겪음).
+    // 상태에 실제로 올라온 것만 기준선으로 삼으면 그런 일이 생기지 않는다.
+    if (!seeded.current) {
+      seeded.current = true
+      for (const p of live) written.current.set(p.id, sign(p))
+      return
+    }
+
     const now = new Set(live.map((p) => p.id))
     for (const p of live) {
       const s = sign(p)

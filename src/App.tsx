@@ -1,13 +1,17 @@
+import { Capacitor } from '@capacitor/core'
+import { nativePorts } from './platform/native'
 import { webPorts } from './platform/web'
 import AppShell from './ui/AppShell'
 import { PortsProvider } from './ui/state/ports'
 import { StoreProvider } from './ui/state/store'
 import './ui/styles.css'
 
-/** 브라우저에서는 web 어댑터를 꽂는다. APK 는 단계 4~5에서 native 로 교체 */
+/** APK 안이면 native, PC 브라우저면 web. `ui/` 는 어느 쪽인지 알지 못한다 (02 §2) */
+const ports = Capacitor.isNativePlatform() ? nativePorts : webPorts
+
 export default function App() {
   return (
-    <PortsProvider ports={webPorts}>
+    <PortsProvider ports={ports}>
       <StoreProvider>
         <AppShell />
       </StoreProvider>

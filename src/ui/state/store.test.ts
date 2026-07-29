@@ -14,6 +14,7 @@ const shot = (): Action => ({
   width: 1200,
   height: 900,
   sha256: 'deadbeef',
+  paths: { original: '', thumb: '' },
 })
 
 const run = (s: State, ...actions: Action[]) => actions.reduce(reducer, s)

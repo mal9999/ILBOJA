@@ -50,8 +50,10 @@ export interface StampRow {
  */
 export interface StampCtx {
   font: string
-  fillStyle: string
-  strokeStyle: string
+  // 실제 캔버스는 그라디언트·패턴도 받는다. 여기를 `string` 으로 좁히면
+  // `CanvasRenderingContext2D` 가 들어오지 못한다 (우리는 문자열만 넣는다)
+  fillStyle: string | CanvasGradient | CanvasPattern
+  strokeStyle: string | CanvasGradient | CanvasPattern
   lineWidth: number
   textBaseline: CanvasTextBaseline
   save(): void
