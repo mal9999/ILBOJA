@@ -1,6 +1,9 @@
 /**
- * Capacitor Filesystem 은 바이너리를 base64 문자열로 주고받는다.
- * `Blob` ↔ base64 변환은 native 어댑터 여러 곳에서 쓰므로 여기 모아 둔다.
+ * Capacitor Filesystem 은 **쓸 때** 바이너리를 base64 문자열로 받는다.
+ *
+ * 읽을 때는 쓰지 않는다 — `Capacitor.convertFileSrc` + `fetch` 로 파일 URL 을 바로 읽으면
+ * 웹↔네이티브 다리를 안 건넌다(`native/db.ts` 참고). 읽기까지 base64 로 하면
+ * 원본 한 장이 6MB 짜리 문자열이 되어 내보내기가 눈에 띄게 느려진다.
  */
 
 export function toBase64(blob: Blob): Promise<string> {
@@ -11,8 +14,4 @@ export function toBase64(blob: Blob): Promise<string> {
     r.onerror = () => reject(r.error)
     r.readAsDataURL(blob)
   })
-}
-
-export async function fromBase64(b64: string): Promise<Blob> {
-  return (await fetch(`data:image/jpeg;base64,${b64}`)).blob()
 }

@@ -7,10 +7,11 @@
  * 사용자에게 보이는 산출물은 원본이 아니라 내보내기 결과다(`native/share.ts`).
  */
 
+import { Capacitor } from '@capacitor/core'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import * as idb from '../idb'
 import type { BlobKind, DbPort } from '../ports'
-import { fromBase64, toBase64 } from './bytes'
+import { toBase64 } from './bytes'
 
 const DIR = Directory.Data
 const ROOT = 'photos'
@@ -41,11 +42,17 @@ export const nativeDb: DbPort = {
     return { original, thumb }
   },
 
+  /**
+   * **base64 를 거치지 않는다.** `readFile` 은 사진 전체를 문자열로 바꿔 웹↔네이티브 다리를
+   * 건너므로 원본(4000×3000)이면 6MB 짜리 문자열이 된다 — 내보내기가 한 장에도 느렸던 이유다
+   * (2026-07-29 실기기). 파일 URL 로 바로 읽으면 다리를 안 건넌다.
+   */
   async getBlob(id, kind) {
     try {
-      const res = await Filesystem.readFile({ path: pathOf(id, kind), directory: DIR })
-      // 네이티브는 base64 문자열, 웹 구현은 Blob 을 준다
-      return typeof res.data === 'string' ? await fromBase64(res.data) : res.data
+      const { uri } = await Filesystem.getUri({ path: pathOf(id, kind), directory: DIR })
+      const res = await fetch(Capacitor.convertFileSrc(uri))
+      if (!res.ok) return null
+      return await res.blob()
     } catch {
       return null // 파일이 없으면 그릴 게 없다. 화면은 이 null 을 감당한다
     }
