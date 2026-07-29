@@ -56,6 +56,11 @@ export default function Home() {
         <b>🛒 스토어</b>
         <span>측량깃발·규준틀 등 연결 (추후)</span>
       </button>
+
+      {/* 폰에 넣은 APK 가 어느 빌드인지 확인용. 실기기 테스트 중에 계속 헷갈렸다 */}
+      <div style={{ marginTop: 10, fontSize: '0.72em', color: 'var(--dim)' }}>
+        빌드 {__BUILD__}
+      </div>
     </div>
   )
 }

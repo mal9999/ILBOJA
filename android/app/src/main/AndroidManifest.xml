@@ -32,4 +32,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 앱 안 카메라(camera-preview)용. 이 플러그인은 자기 매니페스트가 비어 있어서
+         병합으로 들어오지 않는다 — 여기 직접 적어야 한다 (2026-07-29 실기기에서 확인) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 카메라 없는 기기에도 설치는 되게 둔다. 불러오기만으로도 쓸 수 있다 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
