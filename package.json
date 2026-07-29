@@ -13,6 +13,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
+    "@capacitor/camera": "^8.2.1",
     "@capacitor/core": "^8.4.2",
     "@capacitor/filesystem": "^8.1.2",
     "react": "^19.2.7",
@@ -20,12 +21,14 @@
   },
   "devDependencies": {
     "@capacitor/android": "^8.4.2",
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.4.2",
     "@types/node": "^24.13.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "sharp": "^0.35.3",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
     "vitest": "^4.1.10"

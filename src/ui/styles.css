@@ -322,18 +322,30 @@ button {
   position: relative;
   background: #10131a;
 }
+/* 사진 위에 겹친다. 자리를 차지하면 좌우로 52px 를 먹는데, 가로 사진은 폭이 곧 크기라
+   그만큼 높이까지 같이 줄어든다 — 실기기에서 사진이 작다는 지적의 한 원인 (2026-07-29) */
 .sidetab {
-  flex: 0 0 26px;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 26px;
+  z-index: 20;
   writing-mode: vertical-rl;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #232833;
+  background: rgba(35, 40, 51, 0.82);
   color: #cfd4dc;
   font-size: 0.78em;
   letter-spacing: 0.1em;
   border: 0;
   padding: 0;
+}
+.sidetab.l {
+  left: 0;
+}
+.sidetab.r {
+  right: 0;
 }
 .stage {
   flex: 1;
@@ -385,11 +397,12 @@ button {
 .sw[disabled] {
   opacity: 0.22;
 }
+/* 사이드탭(26px)이 겹쳐 있으므로 그 안쪽에 둔다 */
 .sw.l {
-  left: 6px;
+  left: 32px;
 }
 .sw.r {
-  right: 6px;
+  right: 32px;
 }
 .safe {
   position: absolute;

@@ -24,7 +24,15 @@ export default function Main() {
     ports.storage.set('slate', state.slate)
     ports.storage.set('cur', state.cur)
 
-    const image = await ports.camera.capture(source)
+    let image
+    try {
+      image = await ports.camera.capture(source)
+    } catch (e) {
+      // 권한 거부 같은 진짜 실패. 아무 일도 안 일어난 것처럼 보이면 현장에서 원인을 못 찾는다
+      const why = e instanceof Error ? e.message : String(e)
+      dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
+      return
+    }
     if (!image) return // 사용자가 취소
 
     // 사진 바이트는 상태에 넣지 않는다 — 곧장 저장소로 보내고 메타만 dispatch (02 §4).
@@ -72,11 +80,11 @@ export default function Main() {
       </div>
 
       <div className="arena">
-        <button className="sidetab" onClick={() => setSide('left')}>
+        <button className="sidetab l" onClick={() => setSide('left')}>
           보드판서식
         </button>
         <Stage />
-        <button className="sidetab" onClick={() => setSide('right')}>
+        <button className="sidetab r" onClick={() => setSide('right')}>
           공유
         </button>
 
