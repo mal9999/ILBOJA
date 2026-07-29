@@ -347,6 +347,24 @@ button {
 .sidetab.r {
   right: 0;
 }
+/* 앱 안 카메라가 들어가는 자리. 켜기 전에도 DOM 에 있어야 해서 항상 둔다(비어 있으면 안 보임).
+   네이티브는 프리뷰를 WebView 뒤에 그리므로(toBack) 아레나 배경을 비워 줘야 비친다 */
+.preview {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+.preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cam-on .arena {
+  background: transparent;
+}
+
 .stage {
   flex: 1;
   min-width: 0;

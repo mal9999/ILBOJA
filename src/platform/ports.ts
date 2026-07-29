@@ -40,6 +40,29 @@ export interface CameraPort {
   capture(source: PhotoSource): Promise<CapturedImage | null>
 }
 
+/** 미리보기를 띄울 자리 (CSS 픽셀) */
+export interface PreviewRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/**
+ * **앱 안 카메라** — 폰 카메라 앱으로 나가지 않는다 (2026-07-29 전환).
+ *
+ * 나갔다 오는 방식은 두 가지가 깨졌다: 기종에 따라 촬영 후 결과가 안 돌아오고,
+ * 카메라가 떠 있는 동안 안드로이드가 앱을 죽이면 찍은 게 통째로 사라진다(`03` §2.3).
+ * 앱을 안 벗어나면 둘 다 생기지 않고, 표를 고치고 셔터를 누르는 반복이 장당 1터치가 된다.
+ */
+export interface PreviewPort {
+  /** 프리뷰를 이 자리에 띄운다 */
+  start(rect: PreviewRect): Promise<void>
+  stop(): Promise<void>
+  /** 셔터. 취소·실패면 null */
+  shoot(): Promise<CapturedImage | null>
+}
+
 export type BlobKind = 'original' | 'thumb'
 
 export interface PhotoBlobs {
@@ -93,6 +116,7 @@ export interface SharePort {
 
 export interface Ports {
   camera: CameraPort
+  preview: PreviewPort
   storage: StoragePort
   db: DbPort
   share: SharePort

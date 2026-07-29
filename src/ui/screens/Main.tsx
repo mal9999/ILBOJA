@@ -1,15 +1,19 @@
 /**
  * S1 메인 — 동산형 단일화면. 표 + 아이콘바 + 아레나 3단 (03 §1 · §4 S1).
  * 헤더도 하단바도 없다. 남는 높이는 전부 사진에 준다.
+ *
+ * 주 동선은 **표를 고치고 셔터, 반복**이다(2026-07-29 확인). 사진은 확인용이라
+ * 아레나가 작아도 되고, 크게 보며 찾는 건 프리뷰를 탭해 들어가는 별도 화면이 맡는다.
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import EditTable from '../components/EditTable'
 import Stage from '../components/Stage'
 import { useStore } from '../state/store'
 import { usePorts } from '../state/ports'
 import { primeImage } from '../state/images'
-import type { PhotoSource } from '../../platform/ports'
+import { PREVIEW_PARENT } from '../../platform/preview'
+import type { CapturedImage, PhotoSource } from '../../platform/ports'
 
 type Side = 'left' | 'right' | null
 
@@ -17,10 +21,31 @@ export default function Main() {
   const { state, dispatch } = useStore()
   const ports = usePorts()
   const [side, setSide] = useState<Side>(null)
+  const [camOn, setCamOn] = useState(false)
+  const arena = useRef<HTMLDivElement>(null)
 
+  /** 사진 한 장을 앱에 들인다. 촬영이든 불러오기든 여기부터는 같다 */
+  const addPhoto = async (image: CapturedImage, note?: string) => {
+    // 사진 바이트는 상태에 넣지 않는다 — 곧장 저장소로 보내고 메타만 dispatch (02 §4).
+    // 방금 펼친 것은 캐시에 얹어 둔다. 바로 다시 읽어 펼치는 건 낭비다
+    const id = `p${Date.now()}_${state.photos.length}`
+    const paths = await ports.db.putBlobs(id, { original: image.blob, thumb: image.thumb })
+    primeImage(id, 'original', image.source)
+    dispatch({
+      type: 'addPhoto',
+      id,
+      width: image.width,
+      height: image.height,
+      sha256: image.sha256,
+      paths,
+      note,
+    })
+  }
+
+  /** 앱 밖으로 나가는 경로 — 갤러리 불러오기, 시스템 카메라 */
   const shoot = async (source: PhotoSource) => {
     setSide(null)
-    // 카메라가 뜬 사이 안드로이드가 앱을 죽일 수 있다 → 되돌아올 값을 먼저 남긴다 (03 §2.3)
+    // 앱이 뜬 사이 안드로이드가 우리를 죽일 수 있다 → 되돌아올 값을 먼저 남긴다 (03 §2.3)
     ports.storage.set('slate', state.slate)
     ports.storage.set('cur', state.cur)
 
@@ -34,27 +59,60 @@ export default function Main() {
       return
     }
     if (!image) return // 사용자가 취소
-
-    // 사진 바이트는 상태에 넣지 않는다 — 곧장 저장소로 보내고 메타만 dispatch (02 §4).
-    // 방금 펼친 것은 캐시에 얹어 둔다. 바로 다시 읽어 펼치는 건 낭비다
-    const id = `p${Date.now()}_${state.photos.length}`
-    const paths = await ports.db.putBlobs(id, { original: image.blob, thumb: image.thumb })
-    primeImage(id, 'original', image.source)
-
-    dispatch({
-      type: 'addPhoto',
-      id,
-      width: image.width,
-      height: image.height,
-      sha256: image.sha256,
-      paths,
-      note: source === 'gallery' ? '갤러리에서 1장 불러옴' : undefined,
-    })
+    await addPhoto(image, source === 'gallery' ? '갤러리에서 1장 불러옴' : undefined)
   }
+
+  const startCam = async () => {
+    setSide(null)
+    const box = arena.current?.getBoundingClientRect()
+    if (!box) return
+    try {
+      await ports.preview.start({ x: box.left, y: box.top, width: box.width, height: box.height })
+      setCamOn(true)
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e)
+      dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
+    }
+  }
+
+  const stopCam = async () => {
+    setCamOn(false)
+    await ports.preview.stop()
+  }
+
+  /** 셔터 — 앱을 벗어나지 않는다. 찍고 나서도 프리뷰가 그대로라 바로 다음 장을 찍을 수 있다 */
+  const shutter = async () => {
+    try {
+      const image = await ports.preview.shoot()
+      if (image) await addPhoto(image)
+    } catch (e) {
+      const why = e instanceof Error ? e.message : String(e)
+      dispatch({ type: 'snack', snack: { msg: `촬영 실패 — ${why}` } })
+    }
+  }
+
+  // 프리뷰는 네이티브 뷰라 화면을 떠나도 저절로 사라지지 않는다. 반드시 꺼야 한다
+  useEffect(() => {
+    document.documentElement.classList.toggle('cam-on', camOn)
+    return () => {
+      document.documentElement.classList.remove('cam-on')
+    }
+  }, [camOn])
+
+  useEffect(() => {
+    return () => {
+      void ports.preview.stop()
+    }
+  }, [ports])
 
   const say = (msg: string) => {
     setSide(null)
     dispatch({ type: 'snack', snack: { msg } })
+  }
+
+  const go = (screen: 'export' | 'settings' | 'list') => {
+    void stopCam()
+    dispatch({ type: 'go', screen })
   }
 
   return (
@@ -62,28 +120,44 @@ export default function Main() {
       <EditTable />
 
       <div className="icons">
-        <button className="cam" onClick={() => shoot('camera')}>
-          <span className="ic">📷</span>촬영
-        </button>
-        <button onClick={() => shoot('system')}>
-          <span className="ic">🔄</span>카메라전환
-        </button>
-        <button onClick={() => dispatch({ type: 'go', screen: 'export' })}>
+        {camOn ? (
+          <>
+            <button className="cam" onClick={shutter}>
+              <span className="ic">📸</span>셔터
+            </button>
+            <button onClick={stopCam}>
+              <span className="ic">✕</span>카메라끄기
+            </button>
+          </>
+        ) : (
+          <>
+            <button className="cam" onClick={startCam}>
+              <span className="ic">📷</span>촬영
+            </button>
+            <button onClick={() => shoot('system')}>
+              <span className="ic">🔄</span>카메라전환
+            </button>
+          </>
+        )}
+        <button onClick={() => go('export')}>
           <span className="ic">📤</span>내보내기
         </button>
-        <button onClick={() => dispatch({ type: 'go', screen: 'settings' })}>
+        <button onClick={() => go('settings')}>
           <span className="ic">⚙</span>설정
         </button>
-        <button onClick={() => dispatch({ type: 'go', screen: 'list' })}>
+        <button onClick={() => go('list')}>
           <span className="ic">≡</span>목록
         </button>
       </div>
 
-      <div className="arena">
+      <div className="arena" ref={arena}>
+        {/* 프리뷰가 들어갈 자리. 켜기 전에 이미 DOM 에 있어야 한다(웹 구현이 여기에 video 를 넣는다) */}
+        <div id={PREVIEW_PARENT} className="preview" />
+
         <button className="sidetab l" onClick={() => setSide('left')}>
           보드판서식
         </button>
-        <Stage />
+        {!camOn && <Stage />}
         <button className="sidetab r" onClick={() => setSide('right')}>
           공유
         </button>
@@ -140,7 +214,7 @@ export default function Main() {
             <button
               onClick={() => {
                 setSide(null)
-                dispatch({ type: 'go', screen: 'export' })
+                go('export')
               }}
             >
               🔗 공유하기<span className="ph">파일로</span>

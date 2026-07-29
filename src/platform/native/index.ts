@@ -9,13 +9,16 @@
  */
 
 import type { Ports } from '../ports'
+import { cameraPreview } from '../preview'
 import { webStorage } from '../web'
 import { nativeCamera } from './camera'
 import { nativeDb } from './db'
 import { nativeShare } from './share'
 
 export const nativePorts: Ports = {
+  // 주 촬영 경로는 `preview`(앱 안 카메라)다. `camera` 는 갤러리 불러오기·시스템 카메라용으로 남는다
   camera: nativeCamera,
+  preview: cameraPreview,
   storage: webStorage,
   db: nativeDb,
   share: nativeShare,

@@ -5,6 +5,7 @@
  */
 
 import type { Ports, SharePort, StoragePort } from '../ports'
+import { cameraPreview } from '../preview'
 import { webCamera } from './camera'
 import { webDb } from './db'
 
@@ -51,6 +52,8 @@ export const webShare: SharePort = {
 
 export const webPorts: Ports = {
   camera: webCamera,
+  // 웹 구현은 getUserMedia 로 돈다 — PC 카메라로도 같은 동선을 확인할 수 있다
+  preview: cameraPreview,
   storage: webStorage,
   db: webDb,
   share: webShare,
