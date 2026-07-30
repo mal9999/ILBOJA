@@ -550,6 +550,51 @@ button {
   color: var(--dim);
 }
 
+/* ── 사용법 (덮개) ── */
+/* 전체화면 뷰어(45) 위, 시트(50)·스낵바(60) 아래 */
+.help {
+  position: absolute;
+  inset: 0;
+  z-index: 46;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+}
+.help .step {
+  display: flex;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+.help .step:first-child {
+  border-top: 0;
+}
+.help .num {
+  flex: 0 0 24px;
+  height: 24px;
+  margin-top: 2px;
+  border-radius: 99px;
+  background: var(--brand);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.76em;
+  font-weight: 700;
+}
+.help .tx {
+  flex: 1;
+  min-width: 0;
+}
+.help .tx b {
+  display: block;
+  margin-bottom: 2px;
+}
+.help .tx span {
+  color: var(--dim);
+  font-size: 0.9em;
+}
+
 /* ── 시트 · 스낵바 ── */
 .sheetwrap {
   position: absolute;

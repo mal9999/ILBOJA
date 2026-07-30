@@ -277,4 +277,45 @@ describe('서식 관리', () => {
     expect(s.photos.every((p) => p.fields.worker === '홍길동')).toBe(true)
     expect(reducer(s, shot()).photos[2].fields.worker).toBe('김철수')
   })
+
+  it('구분(작업 전/후)은 선택이라 끌 수 있다', () => {
+    const s = reducer(initialState, { type: 'toggleRow', key: 'phase' })
+    expect(s.form.find((r) => r.key === 'phase')?.on).toBe(false)
+  })
+})
+
+/**
+ * ★ 저장된 서식이 코드 변경을 막지 않는다.
+ *
+ * 서식은 통째로 저장되므로 그냥 복원하면 **기본 서식을 고쳐도 이미 쓰던 사람에게는 영영 반영되지 않는다.**
+ * 실제로 `구분`을 선택으로 바꿨는데 폰에서는 필수 그대로였다 (2026-07-30).
+ * 코드가 정하는 것과 사용자가 정한 것의 경계를 이 테스트가 지킨다.
+ */
+describe('복원(hydrate)', () => {
+  /** 예전에 저장된 서식 — 그때는 구분이 필수였고, 사용자는 이름을 바꾸고 꺼 뒀다 */
+  const 예전저장분 = {
+    form: initialState.form.map((r) =>
+      r.key === 'phase' ? { ...r, req: true, label: '전/후', on: false } : r,
+    ),
+    style: initialState.style,
+    cfg: initialState.cfg,
+    slate: initialState.slate,
+    history: {},
+  }
+  const hydrated = reducer(initialState, {
+    type: 'hydrate',
+    photos: [],
+    trash: [],
+    settings: 예전저장분,
+  })
+  const phase = hydrated.form.find((r) => r.key === 'phase')!
+
+  it('코드가 정하는 것(req)은 코드를 따른다', () => {
+    expect(phase.req).toBe(false)
+  })
+
+  it('사용자가 정한 것(label·on)은 저장분을 지킨다', () => {
+    expect(phase.label).toBe('전/후')
+    expect(phase.on).toBe(false)
+  })
 })

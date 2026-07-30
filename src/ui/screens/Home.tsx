@@ -44,6 +44,7 @@ export default function Home() {
 
       <div className="hsub">
         <button onClick={() => later('저장폴더 열기')}>📁 저장폴더</button>
+        <button onClick={() => dispatch({ type: 'help', on: true })}>❓ 사용법</button>
         <button onClick={() => dispatch({ type: 'go', screen: 'settings' })}>⚙ 설정</button>
       </div>
 

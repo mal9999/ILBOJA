@@ -91,7 +91,8 @@ export default function Main() {
    * 프리뷰 수명은 여기 한 곳에서만 관리한다.
    * 프리뷰가 아레나를 **덮으므로**, 시트나 사이드패널이 열릴 때는 잠시 꺼야 표를 고칠 수 있다.
    */
-  const covered = state.sheet !== null || side !== null
+  // 사용법이 열려 있을 때도 꺼야 한다 — 네이티브 프리뷰는 우리 화면 위에 그려져서 글을 덮는다
+  const covered = state.sheet !== null || side !== null || state.help
   const wantCam = camOn && !covered
 
   useEffect(() => {
@@ -229,6 +230,15 @@ export default function Main() {
               }
             >
               📥 서식 수신<span className="ph">받은 서식 열기</span>
+            </button>
+            {/* 작업 중에도 열 수 있어야 한다. 홈까지 되돌아가게 하면 아무도 안 본다 */}
+            <button
+              onClick={() => {
+                setSide(null)
+                dispatch({ type: 'help', on: true })
+              }}
+            >
+              ❓ 사용법<span className="ph">처음이신가요</span>
             </button>
           </div>
         )}

@@ -31,7 +31,9 @@ export const DEFAULT_FORM: FormRow[] = [
     input: 'choice',
     options: ['거실 천장', '거실 벽', '안방 천장', '안방 발코니', '욕실 바닥', '주방 싱크대'],
   },
-  { key: 'phase', label: '구  분', kind: 'phase', on: true, req: true, order: 5 },
+  // 필수 아님(2026-07-30 사용자 결정). 전/후를 안 나누는 작업도 있어서 **끌 수 있어야** 한다 —
+  // `req` 가 붙어 있으면 「표 항목 관리」에서 잠겨 끄지 못한다. 값은 여전히 기본 '작업 전' 로 시작한다
+  { key: 'phase', label: '구  분', kind: 'phase', on: true, req: false, order: 5 },
   { key: 'date', label: '작업일자', kind: 'auto', on: true, req: false, order: 6 },
   { key: 'worker', label: '작 업 자', kind: 'auto', on: true, req: false, order: 7 },
 ]

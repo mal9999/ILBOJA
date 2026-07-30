@@ -89,6 +89,11 @@ export interface State {
   /** 방금 지운 사진 — 되돌리면 원래 자리로 돌아간다 */
   lastRemoved: { photo: Photo; at: number } | null
   bigText: boolean
+  /**
+   * 사용법(도움말). 화면이 아니라 **덮개**다 — 어디서 열든 닫으면 하던 자리로 그대로 돌아온다.
+   * 화면으로 만들면 뒤로가기 목적지를 화면마다 정해야 하는데, 그럴 이유가 없다.
+   */
+  help: boolean
 }
 
 /** 저장소에 남겨 두는 설정 — 사진이 아닌 것들 */
@@ -126,6 +131,7 @@ export type Action =
   | { type: 'sheet'; sheet: Sheet }
   | { type: 'snack'; snack: Snack | null }
   | { type: 'bigText'; on: boolean }
+  | { type: 'help'; on: boolean }
   | { type: 'markExported' }
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -149,6 +155,7 @@ export const initialState: State = {
   bulkUndo: null,
   lastRemoved: null,
   bigText: false,
+  help: false,
 }
 
 /** 지금 편집 대상 — 사진이 있으면 그 사진, 없으면 slate */
@@ -167,6 +174,22 @@ export function currentFields(s: State): Fields {
 export function previewFields(s: State): Fields {
   if (s.photos.length) return s.photos[s.cur].fields
   return snapshotFields(s.form, s.slate, { date: todayISO() })
+}
+
+/**
+ * 저장된 서식에 **코드가 정하는 것만** 다시 심는다.
+ *
+ * 서식은 통째로 저장되므로, 기본 서식을 고쳐도 이미 쓰던 사람에게는 영영 반영되지 않는다
+ * (`구분`을 선택으로 바꿔도 폰에서는 그대로 필수였다 — 2026-07-30).
+ * 그래서 소유를 가른다: **코드 = `kind`·`req`·`input`·`options`, 사용자 = `label`·`on`·`order`·`default`.**
+ * 사용자가 추가한 항목(`custom*`)은 기본 서식에 없으므로 그대로 둔다.
+ */
+function reseed(form: FormRow[]): FormRow[] {
+  return form.map((r) => {
+    const seed = DEFAULT_FORM.find((d) => d.key === r.key)
+    if (!seed) return r
+    return { ...r, kind: seed.kind, req: seed.req, input: seed.input, options: seed.options }
+  })
 }
 
 /** 일괄 대상 사진 인덱스 */
@@ -189,15 +212,18 @@ export function reducer(s: State, a: Action): State {
     case 'go':
       return { ...s, screen: a.screen, sheet: null }
 
-    case 'hydrate':
+    case 'hydrate': {
       // 저장된 게 없으면 `settings` 는 null — 그때는 기본값 그대로 간다
+      const settings = a.settings
       return {
         ...s,
-        ...(a.settings ?? {}),
+        ...(settings ?? {}),
+        ...(settings ? { form: reseed(settings.form) } : {}),
         photos: a.photos,
         trash: a.trash,
         cur: Math.max(0, a.photos.length - 1),
       }
+    }
 
     case 'addPhoto': {
       // 필수값이 비어도 막지 않는다 (03 §4.3)
@@ -405,6 +431,9 @@ export function reducer(s: State, a: Action): State {
 
     case 'bigText':
       return { ...s, bigText: a.on }
+
+    case 'help':
+      return { ...s, help: a.on }
 
     case 'markExported':
       return { ...s, photos: s.photos.map((p) => ({ ...p, exportedRev: p.rev })) }

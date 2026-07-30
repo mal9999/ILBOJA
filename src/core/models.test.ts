@@ -115,7 +115,8 @@ describe('rowsForRender', () => {
 describe('missingRequired', () => {
   it('필수인데 빈 항목의 라벨을 돌려준다', () => {
     const f = form()
-    expect(missingRequired(f, snapshotFields(f, {}))).toEqual(['동/호수', '작업내용', '구  분'])
+    // 구분(작업 전/후)은 **선택**이다 — 전/후를 안 나누는 작업이 있어서 끌 수 있어야 한다 (2026-07-30)
+    expect(missingRequired(f, snapshotFields(f, {}))).toEqual(['동/호수', '작업내용'])
   })
 
   it('촬영 게이트가 없으므로 미입력 사진이 생길 수 있다 — 그걸 잡아내는 게 이 함수다', () => {

@@ -8,6 +8,7 @@ import Sheets from './components/Sheets'
 import Snack from './components/Snack'
 import Export from './screens/Export'
 import FormEdit from './screens/FormEdit'
+import Help from './screens/Help'
 import Home from './screens/Home'
 import List from './screens/List'
 import Main from './screens/Main'
@@ -30,6 +31,9 @@ export default function AppShell() {
       {state.screen === 'export' && <Export />}
       {state.screen === 'settings' && <Settings />}
       {state.screen === 'form' && <FormEdit />}
+
+      {/* 화면이 아니라 덮개다 — 닫으면 하던 자리 그대로 */}
+      {state.help && <Help />}
 
       <Sheets />
       <Snack />
