@@ -23,7 +23,7 @@ export default function Sheets() {
       }}
     >
       <div className="sheet">
-        {sheet.kind === 'which' && <WhichSheet keyName={sheet.key} />}
+        {sheet.kind === 'which' && <WhichSheet keyName={sheet.key} value={sheet.value} />}
         {sheet.kind === 'input' && <InputSheet keyName={sheet.key} />}
         {sheet.kind === 'default' && <DefaultSheet keyName={sheet.key} />}
         {sheet.kind === 'bulk' && <BulkSheet keyName={sheet.key} value={sheet.value} />}
@@ -37,19 +37,25 @@ export default function Sheets() {
 }
 
 /**
- * **무엇을 고칠 것인가** (2026-07-30 사용자 결정).
+ * **지금 보고 있는 사진을 수정하는 건가요?** (2026-07-30 사용자 결정)
  *
- * 사진을 골라 본 뒤 표를 누르면 두 가지로 읽힌다 — 그 사진을 고치려는 것이거나,
- * 다음 촬영 준비이거나. 앱이 몰래 정하면 사진이 오염된다(실제로 그랬다). 그래서 한 번 묻는다.
- * 주 동선(찍고 바로 다음 값 넣기)에서는 이 시트가 뜨지 않는다.
+ * 표를 고칠 때마다 묻는다. 앱이 알아서 판단하면 반드시 한쪽이 틀리고,
+ * 실제로 다음 집 호수를 넣는 순간 방금 찍은 사진이 덮어써졌다.
+ *
+ * `value` 가 실려 오면(전/후 토글) 답하는 즉시 적용하고, 없으면 입력 시트로 넘긴다.
  */
-function WhichSheet({ keyName }: { keyName: string }) {
+function WhichSheet({ keyName, value }: { keyName: string; value?: string }) {
   const { state, dispatch } = useStore()
   const row = state.form.find((r) => r.key === keyName)!
   const n = state.cur + 1
 
   const go = (mode: 'shoot' | 'edit') => {
     dispatch({ type: 'mode', mode })
+    if (value !== undefined) {
+      // 값이 이미 정해졌으면 한 번 더 물을 게 없다
+      dispatch({ type: 'setValue', key: keyName, value })
+      return
+    }
     dispatch({
       type: 'sheet',
       sheet:
@@ -61,14 +67,18 @@ function WhichSheet({ keyName }: { keyName: string }) {
 
   return (
     <>
-      <h3>「{row.label.replace(/\s+/g, '')}」 어느 쪽인가요?</h3>
-      <button className="opt primary" onClick={() => go('shoot')}>
-        <span>📷 다음 촬영 준비입니다</span>
-        <small>찍은 사진은 안 바뀝니다</small>
-      </button>
+      <h3>
+        「{row.label.replace(/\s+/g, '')}」{value ? ` = ${value}` : ''}
+        <br />
+        {n}번 사진을 수정하시겠습니까?
+      </h3>
       <button className="opt" onClick={() => go('edit')}>
-        <span>✏ {n}번 사진을 고칩니다</span>
-        <small>이 사진에만 적용</small>
+        <span>✅ 예 — 이 사진을 수정합니다</span>
+        <small>{n}번 사진에만 적용</small>
+      </button>
+      <button className="opt primary" onClick={() => go('shoot')}>
+        <span>📷 아니요 — 새로 찍을 사진용입니다</span>
+        <small>찍은 사진은 안 바뀝니다</small>
       </button>
     </>
   )

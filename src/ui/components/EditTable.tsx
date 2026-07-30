@@ -20,23 +20,23 @@ export default function EditTable() {
   const fired = useRef(false)
 
   /**
-   * 표를 누르면 어디로 가는가.
+   * 표를 고치면 **무엇을 고치는 건지 먼저 묻는다** (사용자 결정, 2026-07-30).
    *
-   * 사진을 **골라 본 뒤**(◀▶·목록) 촬영 모드에서 누르면 애매하다 — 그 사진을 고치려는 건지,
-   * 다음 촬영 준비인지. 그때만 묻는다. 주 동선(찍고 바로 다음 값 넣기)에서는 안 묻는다.
+   * 앱이 알아서 판단하면 반드시 한쪽이 틀린다 — 실제로 다음 집 호수를 넣는 순간
+   * 방금 찍은 사진이 덮어써졌다. 사진이 없으면 물을 것도 없다(찍기 전이니 당연히 새 사진용).
    *
-   * 촬영 모드의 auto 항목은 **서식 기본값**을 고친다. 그래야 다음 사진부터 새 단지가 붙는다 —
-   * 사진 값만 고치면 다음 촬영 때 옛 기본값으로 되돌아갔다 (2026-07-30).
+   * 촬영 쪽의 auto 항목은 **서식 기본값**을 고친다. 그래야 다음 사진부터 새 단지가 붙는다 —
+   * 사진 값만 고치면 다음 촬영 때 옛 기본값으로 되돌아갔다.
    */
   const openInput = (row: FormRow) => {
-    if (state.mode === 'shoot' && state.picked && !noPhoto) {
+    if (!noPhoto) {
       dispatch({ type: 'sheet', sheet: { kind: 'which', key: row.key } })
       return
     }
     dispatch({
       type: 'sheet',
       sheet:
-        state.mode === 'shoot' && row.kind === 'auto'
+        row.kind === 'auto'
           ? { kind: 'default', key: row.key }
           : { kind: 'input', key: row.key },
     })
@@ -92,7 +92,14 @@ export default function EditTable() {
                     key={v}
                     className={v === '작업 전' ? 'b' : 'a'}
                     aria-pressed={value === v}
-                    onClick={() => dispatch({ type: 'setValue', key: row.key, value: v })}
+                    // 전/후도 표다. 여기가 가장 자주 눌리고, 그래서 오염도 여기서 제일 많이 났다
+                    onClick={() =>
+                      dispatch(
+                        noPhoto
+                          ? { type: 'setValue', key: row.key, value: v }
+                          : { type: 'sheet', sheet: { kind: 'which', key: row.key, value: v } },
+                      )
+                    }
                   >
                     {v}
                   </button>

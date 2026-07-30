@@ -181,19 +181,14 @@ export default function Main() {
 
   return (
     <>
-      {/* 모드가 숨어 있으면 그게 다시 사고가 된다. 표가 무엇을 고치는지 항상 보인다 */}
+      {/* 표가 지금 어느 쪽 값을 보여주는지. 답한 결과가 눈에 보여야 한다 */}
       {state.photos.length > 0 && (
         <div className={`modebar ${state.mode}`}>
-          {state.mode === 'edit' ? (
-            <>
-              <span>✏ {state.cur + 1}번 사진을 고치는 중</span>
-              <button onClick={() => dispatch({ type: 'mode', mode: 'shoot' })}>
-                촬영 준비로
-              </button>
-            </>
-          ) : (
-            <span>📷 다음 촬영에 쓸 값 · 찍은 사진은 안 바뀝니다</span>
-          )}
+          <span>
+            {state.mode === 'edit'
+              ? `✏ ${state.cur + 1}번 사진 수정 중`
+              : '📷 새로 찍을 사진용 값'}
+          </span>
         </div>
       )}
 
