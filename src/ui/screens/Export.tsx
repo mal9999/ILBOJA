@@ -76,6 +76,10 @@ export default function Export() {
   const [done, setDone] = useState(0)
   const [savedAt, setSavedAt] = useState('')
   const [failed, setFailed] = useState(0)
+  /** 장당 평균 소요 — "여전히 느리다"(실기기)를 어디가 느린지로 좁히려고 잰다 (2026-07-30) */
+  const [ms, setMs] = useState<{ read: number; bake: number; write: number; px: string } | null>(
+    null,
+  )
   // 크기는 설정의 「저장 이미지 해상도」 하나뿐이다. 여기서 따로 갖지 않는다 —
   // 같은 규칙이 두 곳에 있으면 반드시 갈라진다(폴더·파일명 규칙과 같은 이유)
   const size = state.cfg.saveRes
@@ -97,16 +101,27 @@ export default function Export() {
     let ok = 0
     let miss = 0
     let at = ''
+    let read = 0
+    let bakeMs = 0
+    let write = 0
+    let px = ''
     for (let i = 0; i < n; i++) {
       const photo = state.photos[i]
       try {
+        const t0 = performance.now()
         const blob = await ports.db.getBlob(photo.id, 'original')
         if (!blob) throw new Error('원본을 찾을 수 없습니다')
+        const t1 = performance.now()
         const jpeg = await bake(blob, photo, state.form, state.style, size)
+        const t2 = performance.now()
         at = await ports.share.writeExport(
           buildPath(photo.fields, pathConfig(state.cfg), i + 1),
           jpeg,
         )
+        read += t1 - t0
+        bakeMs += t2 - t1
+        write += performance.now() - t2
+        px = `${photo.width}×${photo.height}`
         ok++
       } catch {
         miss++ // 한 장이 실패해도 나머지는 끝까지 간다. 몇 장이 빠졌는지는 말해 준다
@@ -114,6 +129,7 @@ export default function Export() {
       setDone(i + 1)
     }
 
+    if (ok) setMs({ read: read / ok, bake: bakeMs / ok, write: write / ok, px })
     setSavedAt(at)
     setFailed(miss)
     // 다 나갔을 때만 "내보냄"으로 표시한다. 실패분이 있는데 최신으로 찍으면 거짓말이 된다
@@ -216,6 +232,15 @@ export default function Export() {
                 저장 위치
                 <br />
                 <code>{savedAt}</code>
+              </p>
+            )}
+            {/* 어디가 느린지 폰에서 바로 보이게. 원인이 잡히면 뺀다 (2026-07-30) */}
+            {ms && (
+              <p className="note">
+                장당 평균 — 읽기 {Math.round(ms.read)}ms · 굽기 {Math.round(ms.bake)}ms · 저장{' '}
+                {Math.round(ms.write)}ms
+                <br />
+                원본 {ms.px}
               </p>
             )}
 

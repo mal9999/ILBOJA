@@ -51,6 +51,7 @@ export default function Stage({ onOpen }: { onOpen?: () => void }) {
   return (
     <div
       className="stage"
+      data-clip={state.style.pos[0]}
       onPointerDown={(e) => {
         setDown(e.clientX)
         swiped.current = false

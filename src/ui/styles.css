@@ -371,10 +371,21 @@ button {
   overflow: hidden;
   touch-action: pan-y;
 }
+/* 폭을 꽉 채운다 — 좌우가 비는 게 눈에 거슬린다는 지적 (2026-07-30).
+   높이가 넘치면 잘리는데, **표가 있는 쪽을 남긴다** — 기본 `bl` 이면 아래를 맞추고 위가 잘린다.
+   플렉스 `margin:auto` 로는 안 된다(넘칠 때 위로 붙어 표가 잘린다). 절대배치로 못 박는다.
+   전체화면(Viewer)은 높이가 넉넉해 안 잘리므로 "전부 보는 자리"가 된다 */
 .stage canvas {
-  max-width: 100%;
-  max-height: 100%;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: auto;
   display: block;
+}
+.stage[data-clip='t'] canvas {
+  bottom: auto;
+  top: 0;
 }
 .empty {
   color: #aeb4bd;
