@@ -1,6 +1,9 @@
 /**
- * 큰 사진 스테이지 (03 §2.5) — 표가 합성된 큰 사진. 좌우 스와이프 + ◀▶ 병행.
+ * 사진 스테이지 (03 §2.5) — 표가 합성된 사진. 좌우 스와이프 + ◀▶ 병행.
  * 찾기 배지(N/M장)는 별도 바가 아니라 스테이지 위 오버레이다(§2.4).
+ *
+ * 메인에서는 "찍혔다" 확인용이라 작아도 되고, 크게 보며 찾는 건 `onOpen` 으로
+ * 들어가는 전체화면(Viewer)이 맡는다 (2026-07-29 정정). 같은 컴포넌트를 양쪽이 쓴다.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -11,10 +14,12 @@ import { usePhotoImage } from '../state/images'
 
 const SWIPE_PX = 60
 
-export default function Stage() {
+export default function Stage({ onOpen }: { onOpen?: () => void }) {
   const { state, dispatch } = useStore()
   const ref = useRef<HTMLCanvasElement>(null)
   const [down, setDown] = useState<number | null>(null)
+  /** 방금 넘긴 스와이프인가 — 스와이프 끝에 딸려 오는 click 을 탭으로 세면 안 된다 */
+  const swiped = useRef(false)
 
   const photo = state.photos[state.cur]
   const has = state.photos.length > 0
@@ -34,21 +39,36 @@ export default function Stage() {
 
   const move = (d: number) => dispatch({ type: 'move', delta: d })
 
+  /** 사진을 탭하면 크게 본다. 스와이프 뒤에 따라오는 click 은 흘려보낸다 */
+  const tap = () => {
+    if (swiped.current) {
+      swiped.current = false
+      return
+    }
+    onOpen?.()
+  }
+
   return (
     <div
       className="stage"
-      onPointerDown={(e) => setDown(e.clientX)}
+      onPointerDown={(e) => {
+        setDown(e.clientX)
+        swiped.current = false
+      }}
       onPointerUp={(e) => {
         if (down === null) return
         const dx = e.clientX - down
         setDown(null)
-        if (Math.abs(dx) > SWIPE_PX) move(dx < 0 ? 1 : -1)
+        if (Math.abs(dx) > SWIPE_PX) {
+          swiped.current = true
+          move(dx < 0 ? 1 : -1)
+        }
       }}
       onPointerLeave={() => setDown(null)}
     >
       {has ? (
         <>
-          <canvas ref={ref} />
+          <canvas ref={ref} onClick={onOpen ? tap : undefined} />
           {!image && (
             <div
               style={{
@@ -65,6 +85,12 @@ export default function Stage() {
           <div className="pos">
             {state.cur + 1} / {state.photos.length}장
           </div>
+          {/* 탭만으로는 있는 줄 모르고 키보드·보조기기로도 못 연다 — 보이는 버튼을 같이 둔다 */}
+          {onOpen && (
+            <button className="zoom" onClick={onOpen}>
+              ⤢ 크게
+            </button>
+          )}
           <button className="sw l" disabled={state.cur === 0} onClick={() => move(-1)}>
             ◀
           </button>

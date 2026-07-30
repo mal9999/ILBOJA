@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react'
 import EditTable from '../components/EditTable'
 import Stage from '../components/Stage'
+import Viewer from '../components/Viewer'
 import { useStore } from '../state/store'
 import { usePorts } from '../state/ports'
 import { primeImage } from '../state/images'
@@ -22,6 +23,8 @@ export default function Main() {
   const ports = usePorts()
   const [side, setSide] = useState<Side>(null)
   const [camOn, setCamOn] = useState(false)
+  /** 큰 이미지 전체화면. 화면 전환이 아니라 메인 위에 덮는 것이라 여기 지역 상태로 둔다 */
+  const [viewer, setViewer] = useState(false)
   const arena = useRef<HTMLDivElement>(null)
 
   /** 사진 한 장을 앱에 들인다. 촬영이든 불러오기든 여기부터는 같다 */
@@ -179,7 +182,7 @@ export default function Main() {
         <button className="sidetab l" onClick={() => setSide('left')}>
           보드판서식
         </button>
-        {!camOn && <Stage />}
+        {!camOn && !viewer && <Stage onOpen={() => setViewer(true)} />}
         <button className="sidetab r" onClick={() => setSide('right')}>
           공유
         </button>
@@ -244,6 +247,8 @@ export default function Main() {
           </div>
         )}
       </div>
+
+      {viewer && <Viewer onClose={() => setViewer(false)} />}
     </>
   )
 }

@@ -431,6 +431,55 @@ button {
   border-radius: 99px;
 }
 
+/* 사진을 탭해도 크게 열리지만, 탭만으로는 있는 줄 모른다. 사이드탭(26px) 안쪽에 둔다 */
+.zoom {
+  position: absolute;
+  top: 8px;
+  right: 32px;
+  z-index: 21;
+  min-height: var(--tap);
+  padding: 0 12px;
+  border: 0;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.84em;
+}
+
+/* ── 큰 이미지 전체화면 (찾기·수정 동선) ── */
+/* 사이드패널(41) 위, 시트(50)·스낵바(60) 아래 */
+.viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+}
+.vclose {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 0;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.88em;
+}
+/* 스와이프로 넘긴 사진이 곧 선택이다. 이 버튼은 "고른 것으로 돌아간다"를 눈에 보이게 할 뿐 */
+.vpick {
+  flex: 0 0 auto;
+  min-height: var(--tap-lg);
+  border: 0;
+  background: var(--brand);
+  color: #fff;
+  font-size: 1.05em;
+  font-weight: 800;
+}
+
 /* 사이드 패널 */
 .scrim {
   position: absolute;
