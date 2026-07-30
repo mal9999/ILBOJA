@@ -10,9 +10,14 @@
  * 별도 플러그인(`camera-preview`)이 있어야 한다. 연속 촬영 터치 수는 그때 줄어든다.
  */
 
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera'
+import {
+  Camera,
+  CameraResultType,
+  CameraSource,
+  MediaTypeSelection,
+} from '@capacitor/camera'
 import { toCaptured } from '../image'
-import type { CameraPort } from '../ports'
+import type { CameraPort, PickedImage } from '../ports'
 
 /** 취소는 실패가 아니다. 권한 거부 같은 진짜 문제와 갈라야 조용히 묻히지 않는다 */
 function isCancel(e: unknown): boolean {
@@ -20,12 +25,31 @@ function isCancel(e: unknown): boolean {
   return /cancel|취소/i.test(m)
 }
 
+/** 경로 하나를 "부르면 열리는 사진"으로. 여기서 열지 않는 게 핵심이다 (ports `PickedImage`) */
+const lazy =
+  (webPath: string): PickedImage =>
+  async () =>
+    toCaptured(await (await fetch(webPath)).blob())
+
 export const nativeCamera: CameraPort = {
   async capture(source) {
-    let webPath: string | undefined
     try {
+      if (source === 'gallery') {
+        /**
+         * **`getPhoto` 는 여러 장을 못 준다.** 사용자가 갤러리에서 5장을 골라도 1장만 돌아왔다
+         * (2026-07-30 실기기). 다중 선택은 `chooseFromGallery` 다.
+         * (`getPhoto`·`pickImages` 는 플러그인 8 에서 deprecated)
+         */
+        const { results } = await Camera.chooseFromGallery({
+          mediaType: MediaTypeSelection.Photo,
+          allowMultipleSelection: true,
+          limit: 0, // 0 = 제한 없음
+        })
+        return results.flatMap((r) => (r.webPath ? [lazy(r.webPath)] : []))
+      }
+
       const photo = await Camera.getPhoto({
-        source: source === 'gallery' ? CameraSource.Photos : CameraSource.Camera,
+        source: CameraSource.Camera,
         // base64 로 받으면 12MP 한 장이 문자열로 한 번 더 메모리에 올라간다.
         // Uri 로 받아 fetch 하면 바이트 그대로 Blob 이 된다 (02 §4)
         resultType: CameraResultType.Uri,
@@ -35,15 +59,12 @@ export const nativeCamera: CameraPort = {
         // 폰 갤러리에도 남긴다(2026-07-29 결정). 우리 원본은 앱 전용 영역에 있어서
         // **앱을 지우면 같이 사라진다** — 보고서 근거자료가 그렇게 날아가면 안 된다.
         // 갤러리에 가면 구글포토 백업에도 자동으로 실린다. 용량 두 벌은 그 값이다.
-        // 갤러리에서 고른 사진은 이미 갤러리에 있으므로 또 넣지 않는다
-        saveToGallery: source !== 'gallery',
+        saveToGallery: true,
       })
-      webPath = photo.webPath
+      return photo.webPath ? [lazy(photo.webPath)] : []
     } catch (e) {
-      if (isCancel(e)) return null
+      if (isCancel(e)) return [] // 취소
       throw e
     }
-    if (!webPath) return null
-    return toCaptured(await (await fetch(webPath)).blob())
   },
 }

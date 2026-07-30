@@ -35,9 +35,18 @@ export interface CapturedImage {
   sha256: string
 }
 
+/**
+ * 아직 **안 펼친** 사진 한 장. 부르는 순간에야 메모리에 올라온다.
+ *
+ * 갤러리에서 여러 장을 고르면 통째로 펼쳐서 돌려주고 싶어지는데, 그러면 20장에 220MB다
+ * (장당 화면용 비트맵 ≈ 11MB). 단계 4a 에서 막아 둔 것이 그대로 되살아난다 (02 §4).
+ * 그래서 **꺼내 쓸 권리만** 넘기고, 화면 쪽이 한 장씩 열어 저장소로 보낸다.
+ */
+export type PickedImage = () => Promise<CapturedImage>
+
 export interface CameraPort {
-  /** 사용자가 취소하면 null */
-  capture(source: PhotoSource): Promise<CapturedImage | null>
+  /** 사용자가 취소하면 빈 배열. 갤러리는 여러 장일 수 있다 */
+  capture(source: PhotoSource): Promise<PickedImage[]>
 }
 
 /** 미리보기를 띄울 자리 (CSS 픽셀) */

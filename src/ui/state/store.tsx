@@ -110,7 +110,6 @@ export type Action =
       height: number
       sha256: string
       paths: StoredPaths
-      note?: string
     }
   | { type: 'setValue'; key: string; value: string }
   | { type: 'move'; delta: number }
@@ -244,12 +243,9 @@ export function reducer(s: State, a: Action): State {
         exportedRev: 0,
       }
       const photos = [...s.photos, photo]
-      return {
-        ...s,
-        photos,
-        cur: photos.length - 1,
-        snack: a.note ? { msg: a.note } : s.snack,
-      }
+      // 안내 문구는 여기서 만들지 않는다 — 여러 장을 들일 때 장마다 스낵바가 뜬다.
+      // 몇 장 들어왔는지는 다 넣은 쪽(Main)이 한 번만 말한다
+      return { ...s, photos, cur: photos.length - 1 }
     }
 
     case 'setValue': {

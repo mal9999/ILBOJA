@@ -24,10 +24,15 @@ function fileInput(): HTMLInputElement {
   return el
 }
 
-function pick(source: PhotoSource): Promise<File | null> {
+function pick(source: PhotoSource): Promise<File[]> {
   const el = fileInput()
-  if (source === 'gallery') el.removeAttribute('capture')
-  else el.setAttribute('capture', 'environment')
+  if (source === 'gallery') {
+    el.removeAttribute('capture')
+    el.multiple = true // 갤러리에서는 여러 장을 고를 수 있다
+  } else {
+    el.setAttribute('capture', 'environment')
+    el.multiple = false
+  }
   el.value = '' // 같은 파일을 다시 골라도 change 가 오도록
 
   return new Promise((resolve) => {
@@ -37,11 +42,11 @@ function pick(source: PhotoSource): Promise<File | null> {
     }
     const onChange = () => {
       off()
-      resolve(el.files?.[0] ?? null)
+      resolve([...(el.files ?? [])])
     }
     const onCancel = () => {
       off()
-      resolve(null)
+      resolve([])
     }
     el.addEventListener('change', onChange)
     el.addEventListener('cancel', onCancel)
@@ -51,7 +56,7 @@ function pick(source: PhotoSource): Promise<File | null> {
 
 export const webCamera: CameraPort = {
   async capture(source) {
-    const file = await pick(source)
-    return file ? toCaptured(file) : null
+    // 여기서 펼치지 않는다 — 화면이 한 장씩 열어 간다 (ports `PickedImage`)
+    return (await pick(source)).map((file) => () => toCaptured(file))
   },
 }

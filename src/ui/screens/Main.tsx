@@ -26,12 +26,20 @@ export default function Main() {
   /** 큰 이미지 전체화면. 화면 전환이 아니라 메인 위에 덮는 것이라 여기 지역 상태로 둔다 */
   const [viewer, setViewer] = useState(false)
   const arena = useRef<HTMLDivElement>(null)
+  /** 사진 id 의 일련번호. 여러 장이 같은 밀리초에 들어와도 안 겹치게 한다 */
+  const seq = useRef(0)
 
-  /** 사진 한 장을 앱에 들인다. 촬영이든 불러오기든 여기부터는 같다 */
-  const addPhoto = async (image: CapturedImage, note?: string) => {
+  /**
+   * 사진 한 장을 앱에 들인다. 촬영이든 불러오기든 여기부터는 같다.
+   *
+   * id 는 **한 번에 여러 장이 들어와도 안 겹쳐야** 한다. 예전엔 `찍은시각_현재장수` 였는데,
+   * 여러 장을 연달아 넣으면 시각이 같고 장수는 아직 안 늘어나 **전부 같은 id** 가 된다
+   * (뒤 사진이 앞 사진의 파일을 덮어쓴다). 그래서 세션 안에서 증가하는 번호를 쓴다.
+   */
+  const addPhoto = async (image: CapturedImage) => {
     // 사진 바이트는 상태에 넣지 않는다 — 곧장 저장소로 보내고 메타만 dispatch (02 §4).
     // 방금 펼친 것은 캐시에 얹어 둔다. 바로 다시 읽어 펼치는 건 낭비다
-    const id = `p${Date.now()}_${state.photos.length}`
+    const id = `p${Date.now()}_${seq.current++}`
     const paths = await ports.db.putBlobs(id, { original: image.blob, thumb: image.thumb })
     primeImage(id, 'original', image.source)
     dispatch({
@@ -41,28 +49,49 @@ export default function Main() {
       height: image.height,
       sha256: image.sha256,
       paths,
-      note,
     })
   }
 
-  /** 앱 밖으로 나가는 경로 — 갤러리 불러오기, 시스템 카메라 */
+  /** 앱 밖으로 나가는 경로 — 갤러리 불러오기(여러 장), 시스템 카메라 */
   const shoot = async (source: PhotoSource) => {
     setSide(null)
     // 앱이 뜬 사이 안드로이드가 우리를 죽일 수 있다 → 되돌아올 값을 먼저 남긴다 (03 §2.3)
     ports.storage.set('slate', state.slate)
     ports.storage.set('cur', state.cur)
 
-    let image
+    let picked
     try {
-      image = await ports.camera.capture(source)
+      picked = await ports.camera.capture(source)
     } catch (e) {
       // 권한 거부 같은 진짜 실패. 아무 일도 안 일어난 것처럼 보이면 현장에서 원인을 못 찾는다
       const why = e instanceof Error ? e.message : String(e)
       dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
       return
     }
-    if (!image) return // 사용자가 취소
-    await addPhoto(image, source === 'gallery' ? '갤러리에서 1장 불러옴' : undefined)
+    if (!picked.length) return // 사용자가 취소
+
+    // **한 장씩 열어서 바로 저장소로 보낸다.** 골라 온 걸 한꺼번에 펼치면 20장에 220MB (02 §4)
+    let done = 0
+    for (const open of picked) {
+      if (picked.length > 1) {
+        // 여러 장이면 몇 초 걸린다. 멈춘 것처럼 보이면 안 된다
+        dispatch({ type: 'snack', snack: { msg: `불러오는 중… ${done + 1} / ${picked.length}장` } })
+      }
+      try {
+        await addPhoto(await open())
+        done++
+      } catch {
+        /* 한 장이 깨져도 나머지는 들인다. 몇 장 들어왔는지는 아래에서 말해 준다 */
+      }
+    }
+
+    if (source === 'gallery' || picked.length > 1) {
+      const lost = picked.length - done
+      dispatch({
+        type: 'snack',
+        snack: { msg: lost ? `${done}장 불러옴 · ${lost}장 실패` : `${done}장 불러옴` },
+      })
+    }
   }
 
   const startCam = () => {
