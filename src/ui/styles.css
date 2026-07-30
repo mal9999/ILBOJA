@@ -354,6 +354,10 @@ button {
   inset: 0;
   z-index: 1;
   overflow: hidden;
+  /* ⚠️ 이게 없으면 **아레나 전체의 터치를 이 빈 div 가 삼킨다.** z-index:1 이라
+     z-index 가 없는 `.stage` 위에 깔리기 때문 — 사진 탭도 ◀▶ 도 죽는다(2026-07-30 실기기).
+     카메라는 웹이든 네이티브든 이 자리를 터치로 다루지 않으므로 통째로 비켜 준다 */
+  pointer-events: none;
 }
 .preview video {
   width: 100%;
@@ -401,6 +405,8 @@ button {
   top: 8px;
   left: 50%;
   transform: translateX(-50%);
+  /* 글자일 뿐이다. 사진 위에 떠 있으므로 탭을 가로채면 안 된다 */
+  pointer-events: none;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
   padding: 4px 12px;
@@ -434,6 +440,7 @@ button {
   bottom: 6px;
   left: 50%;
   transform: translateX(-50%);
+  pointer-events: none;
   color: #cfd4dc;
   font-size: 0.76em;
   white-space: nowrap;
