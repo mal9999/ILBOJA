@@ -29,8 +29,22 @@ export interface BulkUndo {
   before: { id: string; value: string; rev: number }[]
 }
 
+/**
+ * 표가 지금 **무엇을 고치는가**.
+ *
+ * 이 구분이 없어서 사진이 오염됐다 (2026-07-30). 주 동선은 "표 고치고 → 촬영, 반복" 인데
+ * 표가 «현재 사진 편집기» 로 동작하는 바람에, 다음 집 호수를 넣는 순간
+ * **방금 찍은 사진의 호수가 덮어써졌다.**
+ *
+ * - `shoot` — 표 = **다음에 찍을 값**(`slate`·서식 기본값). 이미 찍은 사진은 절대 안 바뀐다. 기본값.
+ * - `edit`  — 표 = **지금 보고 있는 사진**. 찾기 동선에서 한 장을 고칠 때만.
+ */
+export type Mode = 'shoot' | 'edit'
+
 export type Sheet =
   | { kind: 'input'; key: string }
+  /** 사진을 골라 본 뒤 표를 누름 — 이 사진을 고치는 건지 다음 촬영 준비인지 묻는다 */
+  | { kind: 'which'; key: string }
   /** 서식 기본값(Form.default) 편집. 사진 값이 아니다 */
   | { kind: 'default'; key: string }
   | { kind: 'bulk'; key: string; value: string }
@@ -89,6 +103,14 @@ export interface State {
   /** 방금 지운 사진 — 되돌리면 원래 자리로 돌아간다 */
   lastRemoved: { photo: Photo; at: number } | null
   bigText: boolean
+  mode: Mode
+  /**
+   * 사용자가 ◀▶·목록으로 사진을 **골라 봤는가.**
+   *
+   * 골라 본 적이 없으면(= 주 동선) 표를 눌러도 **묻지 않는다** — 촬영 준비가 분명하기 때문이다.
+   * 골라 본 뒤라야 "이 사진을 고치려는 건가" 가 애매해지고, 그때 한 번만 묻는다.
+   */
+  picked: boolean
   /**
    * 사용법(도움말). 화면이 아니라 **덮개**다 — 어디서 열든 닫으면 하던 자리로 그대로 돌아온다.
    * 화면으로 만들면 뒤로가기 목적지를 화면마다 정해야 하는데, 그럴 이유가 없다.
@@ -130,6 +152,7 @@ export type Action =
   | { type: 'sheet'; sheet: Sheet }
   | { type: 'snack'; snack: Snack | null }
   | { type: 'bigText'; on: boolean }
+  | { type: 'mode'; mode: Mode }
   | { type: 'help'; on: boolean }
   | { type: 'markExported' }
 
@@ -154,12 +177,19 @@ export const initialState: State = {
   bulkUndo: null,
   lastRemoved: null,
   bigText: false,
+  mode: 'shoot',
+  picked: false,
   help: false,
 }
 
-/** 지금 편집 대상 — 사진이 있으면 그 사진, 없으면 slate */
+/**
+ * 지금 편집 대상.
+ *
+ * **모드가 정한다.** 사진이 있다고 무조건 그 사진을 고치면, 다음 촬영을 위해 넣은 값이
+ * 방금 찍은 사진을 덮어쓴다 (2026-07-30 실기기에서 3장 전부 오염).
+ */
 export function currentFields(s: State): Fields {
-  return s.photos.length ? s.photos[s.cur].fields : s.slate
+  return s.mode === 'edit' && s.photos.length ? s.photos[s.cur].fields : s.slate
 }
 
 /**
@@ -171,7 +201,7 @@ export function currentFields(s: State): Fields {
  * 표시할 때도 같은 스냅샷을 한 번 태워서 화면과 결과물을 일치시킨다.
  */
 export function previewFields(s: State): Fields {
-  if (s.photos.length) return s.photos[s.cur].fields
+  if (s.mode === 'edit' && s.photos.length) return s.photos[s.cur].fields
   return snapshotFields(s.form, s.slate, { date: todayISO() })
 }
 
@@ -225,8 +255,9 @@ export function reducer(s: State, a: Action): State {
     }
 
     case 'addPhoto': {
-      // 필수값이 비어도 막지 않는다 (03 §4.3)
-      const base = currentFields(s)
+      // 필수값이 비어도 막지 않는다 (03 §4.3).
+      // 새 사진의 밑값은 **언제나 slate** 다 — 한 장을 고치는 중이었더라도 그 값이 새 사진에 붙으면 안 된다
+      const base = s.slate
       const photo: Photo = {
         id: a.id,
         capturedAt: new Date().toISOString(),
@@ -244,13 +275,29 @@ export function reducer(s: State, a: Action): State {
       }
       const photos = [...s.photos, photo]
       // 안내 문구는 여기서 만들지 않는다 — 여러 장을 들일 때 장마다 스낵바가 뜬다.
-      // 몇 장 들어왔는지는 다 넣은 쪽(Main)이 한 번만 말한다
-      return { ...s, photos, cur: photos.length - 1 }
+      // 몇 장 들어왔는지는 다 넣은 쪽(Main)이 한 번만 말한다.
+      // 찍었으면 다시 촬영 모드다. 한 장 고치던 중이었어도 손을 뗀다
+      return { ...s, photos, cur: photos.length - 1, mode: 'shoot', picked: false }
     }
 
     case 'setValue': {
       const history = pushHistory(s.history, a.key, a.value)
-      if (!s.photos.length) {
+      // 촬영 모드에서는 **찍은 사진을 건드리지 않는다.** 다음 촬영에 쓸 값만 바뀐다
+      if (s.mode === 'shoot' || !s.photos.length) {
+        /**
+         * auto 항목(단지·작업자)의 «다음 촬영값» 은 slate 가 아니라 **서식 기본값**이다
+         * (`snapshotFields` 가 auto 는 default 에서 가져간다).
+         * slate 에 넣으면 아무 데도 안 쓰이는 값이 쌓이고, 다음 사진에는 **옛 단지**가 붙는다 —
+         * "단지를 바꿔도 다시 찍으면 이전 아파트가 나온다" 가 이것이었다 (2026-07-30).
+         */
+        if (s.form.find((r) => r.key === a.key)?.kind === 'auto') {
+          return {
+            ...s,
+            form: s.form.map((r) => (r.key === a.key ? { ...r, default: a.value } : r)),
+            sheet: null,
+            history,
+          }
+        }
         return { ...s, slate: { ...s.slate, [a.key]: a.value }, sheet: null, history }
       }
       const photos = s.photos.map((p, i) =>
@@ -261,14 +308,15 @@ export function reducer(s: State, a: Action): State {
       return { ...s, photos, sheet: null, history }
     }
 
+    // 사진을 골라 봤다 → 이제 표를 누르면 무엇을 고칠지 묻는다(모드는 아직 안 바꾼다)
     case 'move': {
       const i = s.cur + a.delta
       if (i < 0 || i >= s.photos.length) return s
-      return { ...s, cur: i }
+      return { ...s, cur: i, picked: true }
     }
 
     case 'goto':
-      return { ...s, cur: a.index, screen: 'main' }
+      return { ...s, cur: a.index, screen: 'main', picked: true }
 
     case 'remove': {
       if (!s.photos.length) return { ...s, snack: { msg: '삭제할 사진이 없습니다' } }
@@ -427,6 +475,10 @@ export function reducer(s: State, a: Action): State {
 
     case 'bigText':
       return { ...s, bigText: a.on }
+
+    case 'mode':
+      // 촬영 모드로 돌아가면 "골라 본 상태"도 푼다 — 다시 묻지 않게
+      return { ...s, mode: a.mode, picked: a.mode === 'edit' ? s.picked : false }
 
     case 'help':
       return { ...s, help: a.on }

@@ -72,18 +72,43 @@ describe('previewFields — 화면에 보여줄 값', () => {
     expect(after).toEqual(before)
   })
 
-  it('사진이 있으면 그 사진 값을 보여준다', () => {
-    const s = run(withPhotos(2), { type: 'goto', index: 0 })
+  it('한 장을 고르는 중이면 그 사진 값을 보여준다', () => {
+    const s = run(withPhotos(2), { type: 'goto', index: 0 }, { type: 'mode', mode: 'edit' })
     expect(previewFields(s)).toBe(s.photos[0].fields)
+  })
+
+  it('촬영 모드에서는 사진이 있어도 **다음에 찍을 값**을 보여준다', () => {
+    const s = run(withPhotos(2), { type: 'goto', index: 0 })
+    expect(previewFields(s)).not.toBe(s.photos[0].fields)
+    expect(previewFields(s).ho).toBe(s.slate.ho)
   })
 })
 
 describe('개별 수정', () => {
-  it('현재 사진만 바뀌고 rev 가 오른다', () => {
-    const s = run(withPhotos(3), { type: 'setValue', key: 'work', value: '창호 교체' })
+  it('수정 모드에서는 그 사진만 바뀌고 rev 가 오른다', () => {
+    const s = run(
+      withPhotos(3),
+      { type: 'mode', mode: 'edit' },
+      { type: 'setValue', key: 'work', value: '창호 교체' },
+    )
     expect(workOf(s)).toEqual(['누수 보수', '누수 보수', '창호 교체'])
     expect(s.photos[2].rev).toBe(2)
     expect(s.photos[0].rev).toBe(1)
+  })
+
+  /**
+   * ★ 주 동선 회귀 방지. 이게 깨지면 **찍은 사진이 오염되는 그 버그**가 되살아난 것이다.
+   * 현장: 101호를 찍고 → 다음 집 102호를 입력 → 찍는다. 1번 사진은 101호로 남아야 한다.
+   */
+  it('★ 촬영 모드에서 값을 넣어도 이미 찍은 사진은 안 바뀐다', () => {
+    const s = run(
+      withPhotos(1),
+      { type: 'setValue', key: 'ho', value: '102동 201호' },
+      { type: 'setValue', key: 'danji', value: '새아파트' },
+    )
+    expect(s.photos[0].fields.ho).toBe('101동 1502호')
+    expect(s.photos[0].rev).toBe(1) // 손도 안 댔다
+    expect(s.slate.ho).toBe('102동 201호')
   })
 
   it('사진이 없으면 slate 에 들어간다', () => {
@@ -129,6 +154,40 @@ describe('일괄 적용', () => {
   })
 })
 
+/**
+ * ★★ 현장 주 동선 전체. 2026-07-30 에 **찍은 3장이 전부 틀리게 저장되던** 흐름 그대로다.
+ * 표가 «현재 사진 편집기» 로 동작해서, 다음 집 값을 넣는 순간 직전 사진이 덮어써졌다.
+ */
+describe('★★ 현장 주 동선 — 101호 전/후 찍고 102호로 옮기기', () => {
+  const 찍힌값 = (s: State) =>
+    s.photos.map((p) => `${p.fields.danji}/${p.fields.ho}/${p.fields.phase}`)
+
+  it('세 장 모두 찍을 당시의 값을 그대로 지킨다', () => {
+    let s = run(
+      initialState,
+      { type: 'setValue', key: 'ho', value: '101호' },
+      { type: 'setValue', key: 'phase', value: '작업 전' },
+      shot(), // ① 101호 작업 전
+      { type: 'setValue', key: 'phase', value: '작업 후' }, // ② 다음 장을 위해 전→후
+      shot(), // ③ 101호 작업 후
+    )
+    // ②에서 1번 사진이 '작업 후' 로 바뀌던 것이 이 버그였다
+    expect(찍힌값(s)).toEqual(['행복아파트/101호/작업 전', '행복아파트/101호/작업 후'])
+
+    s = run(
+      s,
+      { type: 'setValue', key: 'ho', value: '102호' }, // ④ 다음 집
+      { type: 'setValue', key: 'danji', value: '새아파트' }, // ⑤ 단지도 바뀜
+      shot(), // ⑥
+    )
+    expect(찍힌값(s)).toEqual([
+      '행복아파트/101호/작업 전',
+      '행복아파트/101호/작업 후',
+      '새아파트/102호/작업 후', // 옛 단지가 붙던 것도 이 버그였다
+    ])
+  })
+})
+
 describe('일괄 되돌리기', () => {
   it('되돌리면 이전 값으로 돌아온다', () => {
     const s = run(
@@ -145,6 +204,7 @@ describe('일괄 되돌리기', () => {
       withPhotos(3),
       { type: 'bulk', key: 'work', value: '도배', range: 'all' },
       { type: 'goto', index: 1 },
+      { type: 'mode', mode: 'edit' }, // 그 사진을 고르고 "이 사진을 고칩니다" 를 택한 상태
       { type: 'setValue', key: 'work', value: '내가 직접 고침' }, // 일괄 뒤 개별 수정
       { type: 'undoBulk' },
     )

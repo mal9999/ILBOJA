@@ -197,7 +197,40 @@ button {
   color: var(--dim);
 }
 
-/* ── 메인 (S1) = 표 + 아이콘바 + 아레나 3단 (03 §1) ── */
+/* ── 메인 (S1) = 모드띠 + 표 + 아이콘바 + 아레나 (03 §1) ── */
+/* 표가 무엇을 고치는지 알려 주는 띠. 얇게 두지만 색으로 구분된다 */
+.modebar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 0.78em;
+  background: #eef3fb;
+  color: #0f4bb0;
+  border-bottom: 1px solid var(--line);
+}
+.modebar span {
+  flex: 1;
+  min-width: 0;
+}
+.modebar.edit {
+  background: #fff4e0;
+  color: #9a5b00;
+  font-weight: 700;
+}
+.modebar button {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid currentColor;
+  border-radius: 99px;
+  background: var(--paper);
+  color: inherit;
+  font-size: 0.95em;
+}
+
+
 .tbl {
   flex: 0 0 auto;
   border-bottom: 1px solid var(--line);

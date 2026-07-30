@@ -15,10 +15,17 @@ import type { FormRow, Photo } from '../../core/models'
 export default function List() {
   const { state, dispatch } = useStore()
 
-  // 동/호수로 자동 묶음
+  /**
+   * **단지 + 동/호수**로 묶는다.
+   *
+   * 호수만으로 묶으면 단지가 바뀌었을 때 **다른 아파트의 같은 호수가 한 덩어리가 된다** —
+   * 현장에서 단지를 옮겨 다니므로 실제로 일어난다 (2026-07-30 사용자 지적).
+   */
   const groups = new Map<string, { photo: Photo; index: number }[]>()
   state.photos.forEach((photo, index) => {
-    const key = photo.fields.ho?.trim() || '—'
+    const danji = photo.fields.danji?.trim()
+    const ho = photo.fields.ho?.trim() || '동/호수 없음'
+    const key = danji ? `${danji} · ${ho}` : ho
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key)!.push({ photo, index })
   })
@@ -37,10 +44,10 @@ export default function List() {
       <div className="body">
         {!state.photos.length && <p className="note">아직 사진이 없습니다</p>}
 
-        {[...groups].map(([ho, items]) => (
-          <div key={ho}>
+        {[...groups].map(([where, items]) => (
+          <div key={where}>
             <h3 style={{ fontSize: '0.94em', color: 'var(--dim)', margin: '14px 0 8px' }}>
-              {ho} · {items.length}장
+              {where} · {items.length}장
             </h3>
             {items.map(({ photo, index }) => {
               const miss = missingRequired(state.form, photo.fields)
@@ -53,9 +60,16 @@ export default function List() {
                   <Thumb photo={photo} form={state.form} style={state.style} />
                   <span className="cap">
                     <b>{photo.fields.work || '작업내용 없음'}</b>
+                    {/* 어느 집 사진인지가 먼저다. 전/후는 그 다음 (2026-07-30 사용자 지적) */}
                     <span>
-                      {photo.fields.phase || '구분 없음'}
-                      {photo.fields.loc ? ` · ${photo.fields.loc}` : ''}
+                      {[
+                        photo.fields.danji,
+                        photo.fields.ho,
+                        photo.fields.phase,
+                        photo.fields.loc,
+                      ]
+                        .filter((v) => v?.trim())
+                        .join(' · ') || '값 없음'}
                     </span>
                     {miss.length > 0 && <span className="warn">⚠ {miss.join(', ')} 미입력</span>}
                     {photo.rev > photo.exportedRev && photo.exportedRev > 0 && (

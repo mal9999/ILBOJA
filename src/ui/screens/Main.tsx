@@ -181,6 +181,22 @@ export default function Main() {
 
   return (
     <>
+      {/* 모드가 숨어 있으면 그게 다시 사고가 된다. 표가 무엇을 고치는지 항상 보인다 */}
+      {state.photos.length > 0 && (
+        <div className={`modebar ${state.mode}`}>
+          {state.mode === 'edit' ? (
+            <>
+              <span>✏ {state.cur + 1}번 사진을 고치는 중</span>
+              <button onClick={() => dispatch({ type: 'mode', mode: 'shoot' })}>
+                촬영 준비로
+              </button>
+            </>
+          ) : (
+            <span>📷 다음 촬영에 쓸 값 · 찍은 사진은 안 바뀝니다</span>
+          )}
+        </div>
+      )}
+
       <EditTable />
 
       <div className="icons">

@@ -19,16 +19,28 @@ export default function EditTable() {
   const timer = useRef<number | null>(null)
   const fired = useRef(false)
 
-  const openInput = (row: FormRow) =>
+  /**
+   * 표를 누르면 어디로 가는가.
+   *
+   * 사진을 **골라 본 뒤**(◀▶·목록) 촬영 모드에서 누르면 애매하다 — 그 사진을 고치려는 건지,
+   * 다음 촬영 준비인지. 그때만 묻는다. 주 동선(찍고 바로 다음 값 넣기)에서는 안 묻는다.
+   *
+   * 촬영 모드의 auto 항목은 **서식 기본값**을 고친다. 그래야 다음 사진부터 새 단지가 붙는다 —
+   * 사진 값만 고치면 다음 촬영 때 옛 기본값으로 되돌아갔다 (2026-07-30).
+   */
+  const openInput = (row: FormRow) => {
+    if (state.mode === 'shoot' && state.picked && !noPhoto) {
+      dispatch({ type: 'sheet', sheet: { kind: 'which', key: row.key } })
+      return
+    }
     dispatch({
       type: 'sheet',
-      // 사진이 없으면 auto 항목에는 고칠 대상이 없다 → 서식 기본값을 고친다.
-      // 사진이 있으면 그 사진의 값을 고친다 (03 §2.2).
       sheet:
-        noPhoto && row.kind === 'auto'
+        state.mode === 'shoot' && row.kind === 'auto'
           ? { kind: 'default', key: row.key }
           : { kind: 'input', key: row.key },
     })
+  }
 
   const openBulk = (row: FormRow) => {
     if (state.photos.length < 2) return
@@ -60,8 +72,8 @@ export default function EditTable() {
     openInput(row)
   }
 
-  /** 촬영 전 작업일자는 고칠 게 없다 — 값이 촬영 시각으로 정해지기 때문 */
-  const readOnly = (row: FormRow) => noPhoto && row.key === 'date'
+  /** 촬영 준비 중인 작업일자는 고칠 게 없다 — 값이 촬영 시각으로 정해지기 때문 */
+  const readOnly = (row: FormRow) => state.mode === 'shoot' && row.key === 'date'
 
   return (
     <div className="tbl">

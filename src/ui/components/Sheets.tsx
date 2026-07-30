@@ -23,6 +23,7 @@ export default function Sheets() {
       }}
     >
       <div className="sheet">
+        {sheet.kind === 'which' && <WhichSheet keyName={sheet.key} />}
         {sheet.kind === 'input' && <InputSheet keyName={sheet.key} />}
         {sheet.kind === 'default' && <DefaultSheet keyName={sheet.key} />}
         {sheet.kind === 'bulk' && <BulkSheet keyName={sheet.key} value={sheet.value} />}
@@ -32,6 +33,44 @@ export default function Sheets() {
         </button>
       </div>
     </div>
+  )
+}
+
+/**
+ * **무엇을 고칠 것인가** (2026-07-30 사용자 결정).
+ *
+ * 사진을 골라 본 뒤 표를 누르면 두 가지로 읽힌다 — 그 사진을 고치려는 것이거나,
+ * 다음 촬영 준비이거나. 앱이 몰래 정하면 사진이 오염된다(실제로 그랬다). 그래서 한 번 묻는다.
+ * 주 동선(찍고 바로 다음 값 넣기)에서는 이 시트가 뜨지 않는다.
+ */
+function WhichSheet({ keyName }: { keyName: string }) {
+  const { state, dispatch } = useStore()
+  const row = state.form.find((r) => r.key === keyName)!
+  const n = state.cur + 1
+
+  const go = (mode: 'shoot' | 'edit') => {
+    dispatch({ type: 'mode', mode })
+    dispatch({
+      type: 'sheet',
+      sheet:
+        mode === 'shoot' && row.kind === 'auto'
+          ? { kind: 'default', key: keyName }
+          : { kind: 'input', key: keyName },
+    })
+  }
+
+  return (
+    <>
+      <h3>「{row.label.replace(/\s+/g, '')}」 어느 쪽인가요?</h3>
+      <button className="opt primary" onClick={() => go('shoot')}>
+        <span>📷 다음 촬영 준비입니다</span>
+        <small>찍은 사진은 안 바뀝니다</small>
+      </button>
+      <button className="opt" onClick={() => go('edit')}>
+        <span>✏ {n}번 사진을 고칩니다</span>
+        <small>이 사진에만 적용</small>
+      </button>
+    </>
   )
 }
 
