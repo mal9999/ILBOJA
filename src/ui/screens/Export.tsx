@@ -55,16 +55,25 @@ async function bake(
   })
   took.decode += performance.now() - t0
 
+  // 그리기까지 굽기에 넣는다 — 어디에도 안 담기는 시간이 있으면 합이 안 맞아 또 헤맨다
+  const t1 = performance.now()
   const canvas = document.createElement('canvas')
   canvas.width = bitmap.width
   canvas.height = bitmap.height
-  const g = canvas.getContext('2d')!
+  /**
+   * `willReadFrequently` — 캔버스를 **CPU 쪽에** 둔다.
+   *
+   * 없으면 캔버스가 GPU 에 올라가고, `toBlob` 이 픽셀을 도로 읽어 와야 해서 그 전송이 비싸다.
+   * 실기기에서 인코딩이 **0.76MP 에 599ms**(≈800ms/MP)로 정상의 6~10배였다 —
+   * 출력 픽셀에 정비례하는 것도 읽기 비용의 모습이다 (2026-07-30).
+   * 우리는 그린 뒤 곧바로 한 번 읽고 버린다. GPU 에 둘 이유가 없다.
+   */
+  const g = canvas.getContext('2d', { willReadFrequently: true })!
   g.drawImage(bitmap, 0, 0)
   bitmap.close() // 다음 장을 위해 즉시 놓는다
 
   renderStamp(g, canvas.width, canvas.height, rowsForRender(form, photo.fields), style)
 
-  const t1 = performance.now()
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (b) => {
@@ -91,6 +100,9 @@ export default function Export() {
     decode: number
     encode: number
     write: number
+    /** 실제 걸린 시간. 겹쳐 돌리므로 장당 합계보다 짧다 — 이게 사용자가 겪는 시간이다 */
+    total: number
+    lanes: number
     px: string
   } | null>(null)
   // 크기는 설정의 「저장 이미지 해상도」 하나뿐이다. 여기서 따로 갖지 않는다 —
@@ -118,28 +130,56 @@ export default function Export() {
     let write = 0
     let px = ''
     const took = { decode: 0, encode: 0 }
-    for (let i = 0; i < n; i++) {
-      const photo = state.photos[i]
-      try {
-        const t0 = performance.now()
-        const blob = await ports.db.getBlob(photo.id, 'original')
-        if (!blob) throw new Error('원본을 찾을 수 없습니다')
-        const t1 = performance.now()
-        const jpeg = await bake(blob, photo, state.form, state.style, size, took)
-        const t2 = performance.now()
-        at = await ports.share.writeExport(
-          buildPath(photo.fields, pathConfig(state.cfg), i + 1),
-          jpeg,
-        )
-        read += t1 - t0
-        write += performance.now() - t2
-        px = `${photo.width}×${photo.height}`
-        ok++
-      } catch {
-        miss++ // 한 장이 실패해도 나머지는 끝까지 간다. 몇 장이 빠졌는지는 말해 준다
-      }
-      setDone(i + 1)
+    const startedAt = performance.now()
+
+    /**
+     * 여러 장을 **동시에** 굽는다.
+     *
+     * 실기기 계측에서 인코딩이 출력 픽셀에 **정비례**했다(0.76MP 599ms · 3.1MP 2443ms ≈ 790ms/MP).
+     * 고정 비용이 아니라 CPU 일이라는 뜻이고, 사진끼리는 완전히 독립이므로 겹쳐 돌리면 된다.
+     * `toBlob` 은 이미 백그라운드에서 인코딩하므로 워커 없이도 겹친다.
+     *
+     * 다만 겹친 수만큼 메모리도 겹친다 — 「원본」 저장은 12MP 그대로라 한 장씩 간다 (02 §4).
+     */
+    const lanes = size === '원본' ? 1 : 3
+    let next = 0
+    let finished = 0
+
+    /**
+     * **쓰기만 줄 세운다.** 장당 40ms 라 겹쳐 봐야 얻는 게 없는데,
+     * 같은 폴더를 동시에 만들다 부딪힐 여지는 남는다. 굽기(수백 ms)만 겹치면 충분하다.
+     */
+    let chain: Promise<unknown> = Promise.resolve()
+    const writeInTurn = (relPath: string, jpeg: Blob) => {
+      const done = chain.then(() => ports.share.writeExport(relPath, jpeg))
+      chain = done.catch(() => {}) // 한 장이 실패해도 줄은 계속 간다
+      return done
     }
+
+    const worker = async () => {
+      for (;;) {
+        const i = next++
+        if (i >= n) return
+        const photo = state.photos[i]
+        try {
+          const t0 = performance.now()
+          const blob = await ports.db.getBlob(photo.id, 'original')
+          if (!blob) throw new Error('원본을 찾을 수 없습니다')
+          const t1 = performance.now()
+          const jpeg = await bake(blob, photo, state.form, state.style, size, took)
+          const t2 = performance.now()
+          at = await writeInTurn(buildPath(photo.fields, pathConfig(state.cfg), i + 1), jpeg)
+          read += t1 - t0
+          write += performance.now() - t2
+          px = `${photo.width}×${photo.height}`
+          ok++
+        } catch {
+          miss++ // 한 장이 실패해도 나머지는 끝까지 간다. 몇 장이 빠졌는지는 말해 준다
+        }
+        setDone(++finished)
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(lanes, n) }, worker))
 
     if (ok)
       setMs({
@@ -147,6 +187,8 @@ export default function Export() {
         decode: took.decode / ok,
         encode: took.encode / ok,
         write: write / ok,
+        total: performance.now() - startedAt,
+        lanes,
         px,
       })
     setSavedAt(at)
@@ -256,8 +298,13 @@ export default function Export() {
             {/* 어디가 느린지 폰에서 바로 보이게. 원인이 잡히면 뺀다 (2026-07-30) */}
             {ms && (
               <p className="note">
-                장당 평균 — 읽기 {Math.round(ms.read)}ms · <b>펼치기 {Math.round(ms.decode)}ms</b> ·{' '}
-                <b>굽기 {Math.round(ms.encode)}ms</b> · 저장 {Math.round(ms.write)}ms
+                <b>
+                  총 {(ms.total / 1000).toFixed(1)}초 · 장당 {Math.round(ms.total / (n - failed))}ms
+                </b>{' '}
+                ({ms.lanes}장씩 동시)
+                <br />
+                장당 평균 — 읽기 {Math.round(ms.read)}ms · 펼치기 {Math.round(ms.decode)}ms · 굽기{' '}
+                {Math.round(ms.encode)}ms · 저장 {Math.round(ms.write)}ms
                 <br />
                 원본 {ms.px} · 저장 {state.cfg.saveRes}
               </p>
