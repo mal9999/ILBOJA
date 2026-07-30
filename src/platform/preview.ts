@@ -54,10 +54,11 @@ export const cameraPreview: PreviewPort = {
     }
   },
 
-  async shoot() {
+  async shoot(size) {
     if (!running) return null
-    // quality 를 주면 JPEG 로 나온다(안 주면 웹 구현이 PNG 를 뱉는다)
-    const { value } = await CameraPreview.capture({ quality: 92 })
+    // quality 를 주면 JPEG 로 나온다(안 주면 웹 구현이 PNG 를 뱉는다).
+    // 크기를 안 주면 기기가 최대치로 찍는다 — 설정의 「카메라 해상도」가 여기로 온다
+    const { value } = await CameraPreview.capture({ quality: 92, ...size })
     if (!value) return null
     const blob = await (await fetch(`data:image/jpeg;base64,${value}`)).blob()
     return toCaptured(blob)

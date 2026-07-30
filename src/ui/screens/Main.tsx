@@ -18,6 +18,15 @@ import type { CapturedImage, PhotoSource } from '../../platform/ports'
 
 type Side = 'left' | 'right' | null
 
+/**
+ * 설정의 「카메라 해상도」(`'4080 × 3060 (4:3)'`)를 숫자로.
+ * 못 읽으면 `undefined` — 그때는 기기 기본으로 찍는다(막지 않는다).
+ */
+function camSize(label: string): { width: number; height: number } | undefined {
+  const m = /(\d+)\s*×\s*(\d+)/.exec(label)
+  return m ? { width: Number(m[1]), height: Number(m[2]) } : undefined
+}
+
 export default function Main() {
   const { state, dispatch } = useStore()
   const ports = usePorts()
@@ -103,7 +112,7 @@ export default function Main() {
   /** 셔터 — 앱을 벗어나지 않는다. 찍고 나서도 프리뷰가 그대로라 바로 다음 장을 찍을 수 있다 */
   const shutter = async () => {
     try {
-      const image = await ports.preview.shoot()
+      const image = await ports.preview.shoot(camSize(state.cfg.camRes))
       if (!image) {
         // 조용히 넘어가면 현장에서 "눌렀는데 아무 일도 안 난다"가 된다. 반드시 말한다
         dispatch({ type: 'snack', snack: { msg: '촬영 결과가 비어 있습니다 — 다시 눌러 주세요' } })
@@ -189,8 +198,14 @@ export default function Main() {
             <button className="cam" onClick={startCam}>
               <span className="ic">📷</span>촬영
             </button>
-            <button onClick={() => shoot('system')}>
-              <span className="ic">🔄</span>카메라전환
+            {/*
+             * 여기 있던 `카메라전환`(폰 카메라 앱)을 뺐다 — **찍은 사진이 사라지는 경로**였다.
+             * 인텐트에 `EXTRA_OUTPUT` 을 주므로 폰 카메라 앱은 우리 파일에만 쓰고 갤러리에 안 넣는데,
+             * 이 기종은 결과가 앱으로 안 돌아온다 → 앱에도 갤러리에도 안 남는다 (2026-07-30).
+             * 그 자리에 좌패널에 숨어 있던 `불러오기` 를 올렸다.
+             */}
+            <button onClick={() => shoot('gallery')}>
+              <span className="ic">🖼</span>불러오기
             </button>
           </>
         )}
@@ -222,9 +237,7 @@ export default function Main() {
         {side === 'left' && (
           <div className="panel left">
             <h4>보드판서식</h4>
-            <button onClick={() => shoot('gallery')}>
-              🖼 불러오기<span className="ph">폰 사진</span>
-            </button>
+            {/* 불러오기는 아이콘바로 올라갔다(카메라전환 자리). 여기 또 두지 않는다 */}
             <button onClick={() => say('저장됨 (수정하면 자동 저장 — 따로 누를 필요 없어요)')}>
               💾 저장하기<span className="ph">자동저장됨</span>
             </button>

@@ -106,7 +106,7 @@ export default function Stage({ onOpen }: { onOpen?: () => void }) {
         </>
       ) : (
         <div className="empty">
-          <b>📷 촬영</b> 또는 좌측 <b>보드판서식 › 불러오기</b>
+          <b>📷 촬영</b> 또는 <b>🖼 불러오기</b>
           <br />로 사진을 추가하세요
           <br />
           <br />

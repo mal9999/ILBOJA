@@ -68,8 +68,14 @@ export interface PreviewPort {
   /** 프리뷰를 이 자리에 띄운다 */
   start(rect: PreviewRect): Promise<void>
   stop(): Promise<void>
-  /** 셔터. 취소·실패면 null */
-  shoot(): Promise<CapturedImage | null>
+  /**
+   * 셔터. 취소·실패면 null.
+   *
+   * @param size 찍을 크기(설정 「카메라 해상도」). 안 주면 기기 기본.
+   *   **이걸 안 넘기고 있었다** — 설정에서 해상도를 골라도 아무 일도 없었고, 늘 12MP 로 찍혔다.
+   *   12MP 는 내보낼 때마다 통째로 다시 펼쳐야 해서 장당 수 초가 든다 (2026-07-30 실기기).
+   */
+  shoot(size?: { width: number; height: number }): Promise<CapturedImage | null>
 }
 
 export type BlobKind = 'original' | 'thumb'

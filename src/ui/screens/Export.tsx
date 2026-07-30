@@ -39,17 +39,22 @@ async function bake(
   form: FormRow[],
   style: StampStyle,
   saveRes: string,
+  /** 디코드/인코드 소요를 따로 담아 간다 — "굽기 2791ms" 만으로는 어디를 고칠지 모른다 */
+  took: { decode: number; encode: number },
 ): Promise<Blob> {
   const long = Math.max(photo.width, photo.height)
   const target = saveRes === '원본' ? long : Number(saveRes) || long
   const k = Math.min(1, target / long)
 
+  const t0 = performance.now()
   const bitmap = await createImageBitmap(blob, {
     imageOrientation: 'from-image',
     ...(k < 1
       ? { resizeWidth: Math.round(photo.width * k), resizeQuality: 'high' as const }
       : {}),
   })
+  took.decode += performance.now() - t0
+
   const canvas = document.createElement('canvas')
   canvas.width = bitmap.width
   canvas.height = bitmap.height
@@ -59,9 +64,13 @@ async function bake(
 
   renderStamp(g, canvas.width, canvas.height, rowsForRender(form, photo.fields), style)
 
+  const t1 = performance.now()
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('JPEG 인코딩 실패'))),
+      (b) => {
+        took.encode += performance.now() - t1
+        b ? resolve(b) : reject(new Error('JPEG 인코딩 실패'))
+      },
       'image/jpeg',
       0.92,
     )
@@ -77,9 +86,13 @@ export default function Export() {
   const [savedAt, setSavedAt] = useState('')
   const [failed, setFailed] = useState(0)
   /** 장당 평균 소요 — "여전히 느리다"(실기기)를 어디가 느린지로 좁히려고 잰다 (2026-07-30) */
-  const [ms, setMs] = useState<{ read: number; bake: number; write: number; px: string } | null>(
-    null,
-  )
+  const [ms, setMs] = useState<{
+    read: number
+    decode: number
+    encode: number
+    write: number
+    px: string
+  } | null>(null)
   // 크기는 설정의 「저장 이미지 해상도」 하나뿐이다. 여기서 따로 갖지 않는다 —
   // 같은 규칙이 두 곳에 있으면 반드시 갈라진다(폴더·파일명 규칙과 같은 이유)
   const size = state.cfg.saveRes
@@ -102,9 +115,9 @@ export default function Export() {
     let miss = 0
     let at = ''
     let read = 0
-    let bakeMs = 0
     let write = 0
     let px = ''
+    const took = { decode: 0, encode: 0 }
     for (let i = 0; i < n; i++) {
       const photo = state.photos[i]
       try {
@@ -112,14 +125,13 @@ export default function Export() {
         const blob = await ports.db.getBlob(photo.id, 'original')
         if (!blob) throw new Error('원본을 찾을 수 없습니다')
         const t1 = performance.now()
-        const jpeg = await bake(blob, photo, state.form, state.style, size)
+        const jpeg = await bake(blob, photo, state.form, state.style, size, took)
         const t2 = performance.now()
         at = await ports.share.writeExport(
           buildPath(photo.fields, pathConfig(state.cfg), i + 1),
           jpeg,
         )
         read += t1 - t0
-        bakeMs += t2 - t1
         write += performance.now() - t2
         px = `${photo.width}×${photo.height}`
         ok++
@@ -129,7 +141,14 @@ export default function Export() {
       setDone(i + 1)
     }
 
-    if (ok) setMs({ read: read / ok, bake: bakeMs / ok, write: write / ok, px })
+    if (ok)
+      setMs({
+        read: read / ok,
+        decode: took.decode / ok,
+        encode: took.encode / ok,
+        write: write / ok,
+        px,
+      })
     setSavedAt(at)
     setFailed(miss)
     // 다 나갔을 때만 "내보냄"으로 표시한다. 실패분이 있는데 최신으로 찍으면 거짓말이 된다
@@ -237,10 +256,10 @@ export default function Export() {
             {/* 어디가 느린지 폰에서 바로 보이게. 원인이 잡히면 뺀다 (2026-07-30) */}
             {ms && (
               <p className="note">
-                장당 평균 — 읽기 {Math.round(ms.read)}ms · 굽기 {Math.round(ms.bake)}ms · 저장{' '}
-                {Math.round(ms.write)}ms
+                장당 평균 — 읽기 {Math.round(ms.read)}ms · <b>펼치기 {Math.round(ms.decode)}ms</b> ·{' '}
+                <b>굽기 {Math.round(ms.encode)}ms</b> · 저장 {Math.round(ms.write)}ms
                 <br />
-                원본 {ms.px}
+                원본 {ms.px} · 저장 {state.cfg.saveRes}
               </p>
             )}
 
