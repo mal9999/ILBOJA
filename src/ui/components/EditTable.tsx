@@ -14,33 +14,27 @@ const LONG_PRESS_MS = 500
 export default function EditTable() {
   const { state, dispatch } = useStore()
   const fields = previewFields(state)
-  const noPhoto = state.photos.length === 0
   const rows = state.form.filter((r) => r.on).sort((a, b) => a.order - b.order)
   const timer = useRef<number | null>(null)
   const fired = useRef(false)
 
   /**
-   * 표를 고치면 **무엇을 고치는 건지 먼저 묻는다** (사용자 결정, 2026-07-30).
+   * 표를 고치면 **어디로 갈지는 표 위 스위치가 이미 정해 놨다** (2026-07-31).
    *
-   * 앱이 알아서 판단하면 반드시 한쪽이 틀린다 — 실제로 다음 집 호수를 넣는 순간
-   * 방금 찍은 사진이 덮어써졌다. 사진이 없으면 물을 것도 없다(찍기 전이니 당연히 새 사진용).
+   * 묻지 않는다 — 주 동선에서 100번 반복되는 확인창은 읽지 않고 누르게 되어 스스로를 무력화한다.
+   * 기본은 언제나 안전한 쪽(새 사진용)이고, 찍은 사진을 고치는 건 사용자가 켠 동안만이다.
    *
    * 촬영 쪽의 auto 항목은 **서식 기본값**을 고친다. 그래야 다음 사진부터 새 단지가 붙는다 —
    * 사진 값만 고치면 다음 촬영 때 옛 기본값으로 되돌아갔다.
    */
-  const openInput = (row: FormRow) => {
-    if (!noPhoto) {
-      dispatch({ type: 'sheet', sheet: { kind: 'which', key: row.key } })
-      return
-    }
+  const openInput = (row: FormRow) =>
     dispatch({
       type: 'sheet',
       sheet:
-        row.kind === 'auto'
+        state.mode === 'shoot' && row.kind === 'auto'
           ? { kind: 'default', key: row.key }
           : { kind: 'input', key: row.key },
     })
-  }
 
   const openBulk = (row: FormRow) => {
     if (state.photos.length < 2) return
@@ -92,14 +86,8 @@ export default function EditTable() {
                     key={v}
                     className={v === '작업 전' ? 'b' : 'a'}
                     aria-pressed={value === v}
-                    // 전/후도 표다. 여기가 가장 자주 눌리고, 그래서 오염도 여기서 제일 많이 났다
-                    onClick={() =>
-                      dispatch(
-                        noPhoto
-                          ? { type: 'setValue', key: row.key, value: v }
-                          : { type: 'sheet', sheet: { kind: 'which', key: row.key, value: v } },
-                      )
-                    }
+                    // 가장 자주 눌리는 곳이다. 여기에 확인창을 놓으면 앱이 못 쓰게 된다
+                    onClick={() => dispatch({ type: 'setValue', key: row.key, value: v })}
                   >
                     {v}
                   </button>

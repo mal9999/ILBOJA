@@ -213,6 +213,9 @@ button {
 .modebar span {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .modebar.edit {
   background: #fff4e0;

@@ -181,14 +181,28 @@ export default function Main() {
 
   return (
     <>
-      {/* 표가 지금 어느 쪽 값을 보여주는지. 답한 결과가 눈에 보여야 한다 */}
+      {/*
+       * 표가 무엇을 고치는지 **보여주면서 동시에 바꾸는** 스위치.
+       * 기본은 언제나 안전한 쪽(새 사진용)이고, 찍은 사진 수정은 사용자가 켠 동안만이다.
+       * 켠 걸 잊어도 촬영하는 순간 자동으로 꺼진다.
+       */}
       {state.photos.length > 0 && (
         <div className={`modebar ${state.mode}`}>
-          <span>
-            {state.mode === 'edit'
-              ? `✏ ${state.cur + 1}번 사진 수정 중`
-              : '📷 새로 찍을 사진용 값'}
-          </span>
+          {state.mode === 'edit' ? (
+            <>
+              <span>✏ {state.cur + 1}번 사진 수정 중</span>
+              <button onClick={() => dispatch({ type: 'mode', mode: 'shoot' })}>
+                📷 촬영용으로
+              </button>
+            </>
+          ) : (
+            <>
+              <span>📷 새로 찍을 사진용</span>
+              <button onClick={() => dispatch({ type: 'mode', mode: 'edit' })}>
+                ✏ {state.cur + 1}번 고치기
+              </button>
+            </>
+          )}
         </div>
       )}
 
