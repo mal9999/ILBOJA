@@ -9,16 +9,26 @@
  */
 
 import Stage from './Stage'
+import { useStore } from '../state/store'
 
 export default function Viewer({ onClose }: { onClose: () => void }) {
+  const { dispatch } = useStore()
+
+  /** 이름 그대로 **수정 스위치를 켜고** 닫는다 — 찾아 놓고 또 버튼을 누르게 하면 안 된다 */
+  const edit = () => {
+    dispatch({ type: 'mode', mode: 'edit' })
+    onClose()
+  }
+
   return (
     <div className="viewer">
       <Stage />
+      {/* 그냥 닫기 = 촬영용 그대로. 아래 버튼 = 이 사진을 고치러 간다 */}
       <button className="vclose" onClick={onClose}>
         ✕ 닫기
       </button>
-      <button className="vpick" onClick={onClose}>
-        이 사진 편집하기
+      <button className="vpick" onClick={edit}>
+        ✏ 이 사진 고치기
       </button>
     </div>
   )

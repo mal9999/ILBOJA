@@ -510,6 +510,19 @@ button {
   display: flex;
   flex-direction: column;
 }
+/* 전체화면은 **자를 이유가 없다.** 통째로 보여주고 가운데 둔다 —
+   아레나의 "폭 꽉 채우고 아래 맞추기"가 여기까지 따라오면 위가 통째로 비어 보인다 (2026-07-31) */
+.viewer .stage canvas {
+  position: static;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+/* 사진 아래끝에 구워진 표를 이 안내문이 가린다. 전체화면은 표를 보러 오는 자리다 */
+.viewer .safe {
+  display: none;
+}
 .vclose {
   position: absolute;
   top: 8px;
