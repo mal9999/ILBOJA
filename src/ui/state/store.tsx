@@ -41,7 +41,8 @@ export interface BulkUndo {
  * **사용자가 표 위 스위치로 직접 켠다**(사용자 결정, 2026-07-31).
  *
  * - `shoot` — 새로 찍을 사진용. 이미 찍은 사진은 절대 안 바뀐다. **기본값이고 안전한 쪽이다.**
- * - `edit`  — 지금 보고 있는 사진 수정. 사용자가 켠 동안만. **찍으면 자동으로 꺼진다.**
+ * - `edit`  — 지금 보고 있는 사진 수정. 사용자가 켠 동안만.
+ *   **찍으면 꺼지고, 메인을 벗어나도 꺼진다.**
  */
 export type Mode = 'shoot' | 'edit'
 
@@ -233,7 +234,15 @@ function pushHistory(history: State['history'], key: string, value: string) {
 export function reducer(s: State, a: Action): State {
   switch (a.type) {
     case 'go':
-      return { ...s, screen: a.screen, sheet: null }
+      /**
+       * 화면을 옮기면 **수정 모드는 손을 뗀다** (2026-07-31).
+       *
+       * 켜 둔 채 목록·설정에 다녀오면 돌아와서도 켜져 있는 걸 잊는다 — 그 상태로 다음 집
+       * 호수를 넣으면 직전 사진이 다시 오염된다. 화면을 벗어나는 건 그 사진을 고치던 흐름이
+       * 끝났다는 뜻이므로 안전한 쪽으로 되돌린다. (시간 경과로 푸는 건 안 한다 —
+       * 고치던 중 조용히 풀리면 이번엔 반대 방향으로 오염된다)
+       */
+      return { ...s, screen: a.screen, sheet: null, mode: 'shoot' }
 
     case 'hydrate': {
       // 저장된 게 없으면 `settings` 는 null — 그때는 기본값 그대로 간다

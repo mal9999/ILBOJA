@@ -70,7 +70,12 @@ export default function EditTable() {
   const readOnly = (row: FormRow) => state.mode === 'shoot' && row.key === 'date'
 
   return (
-    <div className="tbl">
+    /*
+     * 수정 모드에서는 **표 자체가** 달라 보인다 (2026-07-31).
+     * 표 위 모드띠는 한 줄이라 햇빛 아래 현장에서 흘려보게 되는데, 정작 손이 닿는 건 표다.
+     * 경고는 손 닿는 자리에 있어야 한다.
+     */
+    <div className={`tbl ${state.mode === 'edit' ? 'edit' : ''}`}>
       {rows.map((row) => {
         const value = fields[row.key] ?? ''
         const empty = row.req && !value.trim()

@@ -111,6 +111,23 @@ describe('개별 수정', () => {
     expect(s.slate.ho).toBe('102동 201호')
   })
 
+  /**
+   * ★ 켜 둔 채 목록·설정에 다녀오면 돌아와서 켜져 있는 걸 잊는다 — 그 상태로 다음 집 호수를
+   * 넣으면 위의 오염 버그가 되살아난다. 화면을 벗어나는 건 고치던 흐름이 끝났다는 뜻이다.
+   */
+  it('★ 화면을 옮기면 수정 모드가 풀린다', () => {
+    const s = run(
+      withPhotos(2),
+      { type: 'mode', mode: 'edit' },
+      { type: 'go', screen: 'list' },
+      { type: 'go', screen: 'main' },
+      { type: 'setValue', key: 'ho', value: '102동 201호' },
+    )
+    expect(s.mode).toBe('shoot')
+    expect(s.photos[1].fields.ho).toBe('101동 1502호')
+    expect(s.slate.ho).toBe('102동 201호')
+  })
+
   it('사진이 없으면 slate 에 들어간다', () => {
     const s = reducer(initialState, { type: 'setValue', key: 'work', value: '누수 보수' })
     expect(s.slate.work).toBe('누수 보수')

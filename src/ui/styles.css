@@ -238,6 +238,18 @@ button {
   flex: 0 0 auto;
   border-bottom: 1px solid var(--line);
 }
+/*
+ * 수정 모드 — 모드띠와 **같은 호박색**으로 표 전체를 물들이고 굵게 두른다.
+ * 「작업 전」 버튼의 var(--before) 주황과는 다른 색이어야 한다(한 표 안에 두 뜻의 주황이 있으면 안 된다).
+ */
+.tbl.edit {
+  border: 4px solid #9a5b00;
+  background: #fff4e0;
+}
+.tbl.edit .k {
+  background: #ffe9c7;
+  color: #9a5b00;
+}
 .tbl .r {
   display: flex;
   align-items: stretch;
