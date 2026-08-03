@@ -65,6 +65,15 @@ export interface CameraPort {
   pickFromGallery(): Promise<PickedImage[]>
 }
 
+/**
+ * 우리가 쓰는 플래시 모드. 플러그인은 `auto`·`red-eye` 도 받지만 **안 쓴다** —
+ * 보고서에 들어갈 사진이라 «찍을 때마다 다르게 나오는» 자동은 오히려 방해다.
+ *
+ * - `on` 은 셔터 순간에만 터진다. 밝은 사진을 남기는 쪽.
+ * - `torch` 는 계속 켜져 있다. **어두운 데서는 이게 있어야 프레이밍이 된다** — 표 자리도 안 보인다.
+ */
+export type FlashMode = 'off' | 'on' | 'torch'
+
 /** 미리보기를 띄울 자리 (CSS 픽셀) */
 export interface PreviewRect {
   x: number
@@ -84,6 +93,14 @@ export interface PreviewPort {
   /** 프리뷰를 이 자리에 띄운다 */
   start(rect: PreviewRect): Promise<void>
   stop(): Promise<void>
+  /**
+   * 이 기기가 되는 플래시 모드. **프리뷰가 켜진 뒤에 물어야 한다**(카메라에 물어보는 값이다).
+   *
+   * 플래시가 없는 기기·PC 브라우저에서는 빈 배열이다 — 그때는 버튼을 아예 안 보여 준다.
+   */
+  flashModes(): Promise<FlashMode[]>
+  /** 실패하면 던진다 — 조용히 삼키면 "눌렀는데 불이 안 켜진다"가 된다 */
+  setFlash(mode: FlashMode): Promise<void>
   /**
    * 셔터. 취소·실패면 null.
    *

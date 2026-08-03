@@ -1113,8 +1113,10 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 0 16px env(safe-area-inset-bottom, 0px);
+  /* 큰글씨 모드에서 버튼 넷(표자리·플래시·셔터·닫기)이 360px 폭에 겨우 들어간다 —
+     72×3 + 셔터 88 = 304 이라 여백으로 쓸 수 있는 게 이만큼뿐이다 */
+  gap: 8px;
+  padding: 0 10px env(safe-area-inset-bottom, 0px);
   background: rgba(0, 0, 0, 0.55);
 }
 /* 가로로 눕히면 바도 옆으로 선다 — 아래에 두면 프리뷰 아랫단(표 자리)을 그대로 덮는다 */
@@ -1150,6 +1152,11 @@ button {
 .cam-bar button .ph {
   font-size: 0.82em;
   color: #c9ced6;
+}
+/* 켜져 있으면 아이콘 색으로 알린다 — 햇빛 아래서 작은 글씨(.ph)는 안 읽힌다 */
+.cam-bar .flash[data-on='1'],
+.cam-bar .flash[data-on='1'] .ph {
+  color: #ffd166;
 }
 .cam-bar button:active {
   background: rgba(255, 255, 255, 0.16);

@@ -16,7 +16,7 @@ import type { StampPos } from '../../core/renderStamp'
 import { renderStamp } from '../../core/renderStamp'
 import { orientation } from '../../platform/orientation'
 import { PREVIEW_PARENT } from '../../platform/preview'
-import { reason, type PreviewRect } from '../../platform/ports'
+import { reason, type FlashMode, type PreviewRect } from '../../platform/ports'
 import { previewFields, useStore } from '../state/store'
 import { usePorts } from '../state/ports'
 import { primeImage } from '../state/images'
@@ -31,6 +31,12 @@ const POS_LABEL: Record<StampPos, string> = {
   br: '오른쪽 아래',
   tr: '오른쪽 위',
   tl: '왼쪽 위',
+}
+
+const FLASH_LABEL: Record<FlashMode, string> = {
+  off: '끔',
+  on: '켬',
+  torch: '손전등',
 }
 
 /**
@@ -64,7 +70,12 @@ const BAR = 120
  *    **가로에서 바가 프리뷰 아래쪽을 덮어** 「왼쪽 아래」·「오른쪽 아래」 표가 안 보인다.
  *    자리를 고르러 온 화면에서 그 자리가 가려지면 안 된다.
  *
- * @param ar 사진의 긴변/짧은변 (4:3 이면 1.333)
+ * ⚠️ **검은 띠의 크기는 여기서 못 줄인다** (2026-08-03 실측·계산). 384×832 화면에서
+ * 4:3 은 512×384 가 상한이라 200px 이 남고, **짧은 변이 상한이라 프리뷰를 더 키울 수가 없다.**
+ * 남는 자리를 바에게 주는 안은 «바만 320 으로 넓어지고 어두운 넓이는 그대로»라 폐기했다.
+ * 실제로 보이는 사진을 키우는 길은 **16:9 로 찍는 것 하나뿐**이다(설정 「카메라 해상도」).
+ *
+ * @param ar 사진의 긴변/짧은변 (4:3 이면 1.333, 16:9 면 1.778)
  */
 function frameFor(vw: number, vh: number, ar: number): PreviewRect {
   const portrait = vh >= vw
@@ -129,6 +140,19 @@ export default function Camera() {
   /** 셔터를 눌러 저장하는 중. 두 번 눌려 같은 장이 두 번 들어가면 안 된다 */
   const [busy, setBusy] = useState(false)
 
+  const [flash, setFlashState] = useState<FlashMode>('off')
+  /** 이 기기가 되는 모드. 프리뷰를 켜 봐야 알 수 있다 — 비어 있으면 버튼도 없다 */
+  const [flashModes, setFlashModes] = useState<FlashMode[]>([])
+  /**
+   * 프리뷰를 다시 켤 때 되심기 위해 최신 값을 들고 있는다.
+   * 상태를 그 `useEffect` 의 의존성에 넣으면 **플래시를 바꿀 때마다 카메라가 꺼졌다 켜진다.**
+   */
+  const flashRef = useRef(flash)
+  const applyFlash = (m: FlashMode) => {
+    flashRef.current = m
+    setFlashState(m)
+  }
+
   const size = camSize(state.cfg.camRes)
   /** 사진 비율. 해상도를 못 읽으면 4:3 으로 본다 — 대부분의 기기 기본값이다 */
   const ar = size ? Math.max(size.width, size.height) / Math.min(size.width, size.height) : 4 / 3
@@ -188,6 +212,23 @@ export default function Camera() {
         const why = reason(e)
         dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
         dispatch({ type: 'go', screen: 'main' })
+        return
+      }
+      /**
+       * 플래시는 **프리뷰가 켜진 뒤에** 다룬다 — 되는 모드도 카메라에 물어야 알고,
+       * 폰을 돌리면 여기를 다시 지나는데 그때 플래시는 **기기 기본(꺼짐)으로 돌아가 있다.**
+       * 켜 뒀던 것을 되심지 않으면 눕히는 순간 불이 조용히 꺼진다.
+       */
+      const modes = await ports.preview.flashModes()
+      if (!alive) return
+      setFlashModes(modes)
+      if (flashRef.current === 'off') return
+      try {
+        await ports.preview.setFlash(flashRef.current)
+      } catch {
+        if (!alive) return
+        applyFlash('off')
+        dispatch({ type: 'snack', snack: { msg: '플래시가 꺼졌습니다 — 다시 켜 주세요' } })
       }
     })()
     return () => {
@@ -195,22 +236,22 @@ export default function Camera() {
     }
   }, [box, ports, dispatch])
 
-  useEffect(() => {
-    return () => {
-      void ports.preview.stop()
-    }
-  }, [ports])
-
   /**
    * **이 화면만 폰을 따라 돈다.** 앱 나머지는 세로 고정이다(`AndroidManifest`, `platform/orientation`).
    * 사진은 눕혀 찍으므로 여기서 잠겨 있으면 가로 사진이 아예 안 나온다.
+   *
+   * ⚠️ **끄기와 세로 잠금은 순서가 있다.** 플러그인의 `stop` 은 «켤 때의 방향 요청» 을
+   * UI 스레드에서 되돌려 놓는데(`CameraPreview.java:124`), 그 값은 우리가 `followSensor()` 를
+   * 부른 **뒤에** 잡힌 SENSOR 다. 둘을 나란히 쏘면 그 복원이 우리 잠금보다 늦게 도착해서
+   * **카메라를 다녀오면 앱 전체가 폰을 따라 돈다**(실기기 확인 2026-08-03 — 촬영 뒤 메인이 가로였다).
+   * 그래서 `stop` 이 끝난 것을 보고 나서 잠근다.
    */
   useEffect(() => {
     void orientation.followSensor()
     return () => {
-      void orientation.lockPortrait()
+      void ports.preview.stop().finally(() => orientation.lockPortrait())
     }
-  }, [])
+  }, [ports])
 
   /** 지금 찍으면 표가 이렇게 나온다 — 값도 자리도 실제 결과와 같아야 의미가 있다 */
   const rows = useMemo(
@@ -259,6 +300,20 @@ export default function Camera() {
   const nextPos = () => {
     const i = RING.indexOf(state.style.pos)
     dispatch({ type: 'setStyle', patch: { pos: RING[(i + 1) % RING.length] } })
+  }
+
+  /**
+   * 끔 → 켬 → 손전등 → 끔. **기기가 안 되는 모드는 목록에 없으므로 저절로 건너뛴다.**
+   * 카메라가 받아들인 뒤에만 화면 표시를 바꾼다 — 실패했는데 「켬」이라고 적혀 있으면 안 된다.
+   */
+  const cycleFlash = async () => {
+    const next = flashModes[(flashModes.indexOf(flash) + 1) % flashModes.length]
+    try {
+      await ports.preview.setFlash(next)
+      applyFlash(next)
+    } catch (e) {
+      dispatch({ type: 'snack', snack: { msg: `플래시를 바꾸지 못했습니다 — ${reason(e)}` } })
+    }
   }
 
   /** 셔터 — 찍고, 카메라를 닫고, 메인에서 결과를 본다 (한 장씩) */
@@ -329,6 +384,13 @@ export default function Camera() {
           <span className="ic">⟳</span>표자리
           <span className="ph">{POS_LABEL[state.style.pos]}</span>
         </button>
+        {/* 「끔」밖에 못 하는 기기(플래시 없음)·PC 브라우저에서는 버튼 자체를 안 낸다 */}
+        {flashModes.some((m) => m !== 'off') && (
+          <button className="flash" data-on={flash === 'off' ? undefined : '1'} onClick={cycleFlash}>
+            <span className="ic">⚡</span>플래시
+            <span className="ph">{FLASH_LABEL[flash]}</span>
+          </button>
+        )}
         <button className="shot" onClick={shutter} disabled={busy} aria-label="촬영">
           {busy ? '저장 중' : '●'}
         </button>

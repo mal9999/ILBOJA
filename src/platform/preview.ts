@@ -11,12 +11,15 @@
 
 import { CameraPreview } from '@capacitor-community/camera-preview'
 import { toCaptured } from './image'
-import type { PreviewPort } from './ports'
+import type { FlashMode, PreviewPort } from './ports'
 
 /** 웹에서는 이 id 를 가진 요소 안에 `<video>` 가 들어간다 */
 export const PREVIEW_PARENT = 'ilboja-preview'
 
 let running = false
+
+/** 버튼이 도는 순서이기도 하다 — 끔 → 켬 → 손전등 → 끔 */
+const OUR_MODES: FlashMode[] = ['off', 'on', 'torch']
 
 /**
  * 켜기·끄기를 **한 줄로 세운다.**
@@ -87,6 +90,26 @@ export const cameraPreview: PreviewPort = {
          * 네이티브 프리뷰는 옛 자리·옛 방향에 그대로 남는다 — **화면 쪽이 회전을 보고 다시 켜야 한다**(Camera.tsx).
          */
         lockAndroidOrientation: false,
+        /**
+         * ❌ **핀치 줌은 안 켠다 — 셔터가 정확히 2배로 늦는다** (실기기 A/B, 2026-08-03).
+         *
+         * `true` 면 줌 자체는 **된다.** 프리뷰가 뒤에 있어도(`toBack:true`) 플러그인이 WebView
+         * 터치를 네이티브 뷰로 중계하기 때문이다(`CameraPreview.java:489` `setupBroadcast`).
+         *
+         * 문제는 곁딸림이다. 이 옵션이 켜져야 플러그인이 터치 리스너를 달고, 그러면
+         * **탭 → 초점**(`tapToFocus`, 플러그인이 늘 `true`)까지 같이 살아난다 →
+         * **셔터를 누른 그 탭이 초점 잡기를 시켜** 촬영이 그만큼 밀린다. 같은 자리·같은 장면:
+         *
+         * | | 네이티브 촬영 |
+         * |---|---|
+         * | `false` | 0.66초 · 0.66초 |
+         * | `true`  | 1.31초 · 1.31초 |
+         *
+         * 셔터는 4.8초에서 0.7초까지 끌어내린 주 동선이다. 어쩌다 쓰는 줌 때문에 장당 0.65초를
+         * 도로 내주지 않는다(사용자 결정). 되살리려면 프리뷰가 켜진 뒤 그 fragment 의
+         * `tapToFocus` 를 꺼야 한다 — `getFragmentManager().findFragmentById(20)` 의 public 필드다.
+         */
+        enableZoom: false,
       })
       running = true
     })
@@ -94,6 +117,22 @@ export const cameraPreview: PreviewPort = {
 
   stop() {
     return queue(hardStop)
+  },
+
+  async flashModes() {
+    if (!running) return []
+    try {
+      const { result } = await CameraPreview.getSupportedFlashModes()
+      // 기기가 주는 목록에는 `auto`·`red-eye` 도 섞여 온다. 우리가 쓰는 것만 남긴다
+      return OUR_MODES.filter((m) => result.includes(m))
+    } catch {
+      // 플래시가 없는 기기거나 PC 브라우저(웹 구현은 «지원 안 함» 을 던진다). 버튼을 안 보이게 한다
+      return []
+    }
+  },
+
+  setFlash(mode) {
+    return CameraPreview.setFlashMode({ flashMode: mode })
   },
 
   async shoot(size) {
