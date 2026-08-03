@@ -6,35 +6,24 @@
  * 아레나가 작아도 되고, 크게 보며 찾는 건 프리뷰를 탭해 들어가는 별도 화면이 맡는다.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import EditTable from '../components/EditTable'
 import Stage from '../components/Stage'
 import Viewer from '../components/Viewer'
+import { useBackHandler } from '../state/back'
 import { useStore } from '../state/store'
 import { usePorts } from '../state/ports'
 import { primeImage } from '../state/images'
-import { PREVIEW_PARENT } from '../../platform/preview'
-import type { CapturedImage, PhotoSource } from '../../platform/ports'
+import { reason, type CapturedImage } from '../../platform/ports'
 
 type Side = 'left' | 'right' | null
-
-/**
- * 설정의 「카메라 해상도」(`'4080 × 3060 (4:3)'`)를 숫자로.
- * 못 읽으면 `undefined` — 그때는 기기 기본으로 찍는다(막지 않는다).
- */
-function camSize(label: string): { width: number; height: number } | undefined {
-  const m = /(\d+)\s*×\s*(\d+)/.exec(label)
-  return m ? { width: Number(m[1]), height: Number(m[2]) } : undefined
-}
 
 export default function Main() {
   const { state, dispatch } = useStore()
   const ports = usePorts()
   const [side, setSide] = useState<Side>(null)
-  const [camOn, setCamOn] = useState(false)
   /** 큰 이미지 전체화면. 화면 전환이 아니라 메인 위에 덮는 것이라 여기 지역 상태로 둔다 */
   const [viewer, setViewer] = useState(false)
-  const arena = useRef<HTMLDivElement>(null)
   /** 사진 id 의 일련번호. 여러 장이 같은 밀리초에 들어와도 안 겹치게 한다 */
   const seq = useRef(0)
 
@@ -61,20 +50,20 @@ export default function Main() {
     })
   }
 
-  /** 앱 밖으로 나가는 경로 — 갤러리 불러오기(여러 장), 시스템 카메라 */
-  const shoot = async (source: PhotoSource) => {
+  /** 폰 사진 불러오기 — 앱 밖(갤러리)으로 나가는 유일한 경로. 여러 장 가능 */
+  const load = async () => {
     setSide(null)
-    // 앱이 뜬 사이 안드로이드가 우리를 죽일 수 있다 → 되돌아올 값을 먼저 남긴다 (03 §2.3)
+    // 갤러리가 뜬 사이 안드로이드가 우리를 죽일 수 있다 → 되돌아올 값을 먼저 남긴다 (03 §2.3)
     ports.storage.set('slate', state.slate)
     ports.storage.set('cur', state.cur)
 
     let picked
     try {
-      picked = await ports.camera.capture(source)
+      picked = await ports.camera.pickFromGallery()
     } catch (e) {
       // 권한 거부 같은 진짜 실패. 아무 일도 안 일어난 것처럼 보이면 현장에서 원인을 못 찾는다
-      const why = e instanceof Error ? e.message : String(e)
-      dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
+      const why = reason(e)
+      dispatch({ type: 'snack', snack: { msg: `사진을 열지 못했습니다 — ${why}` } })
       return
     }
     if (!picked.length) return // 사용자가 취소
@@ -94,88 +83,33 @@ export default function Main() {
       }
     }
 
-    if (source === 'gallery' || picked.length > 1) {
-      const lost = picked.length - done
-      dispatch({
-        type: 'snack',
-        snack: { msg: lost ? `${done}장 불러옴 · ${lost}장 실패` : `${done}장 불러옴` },
-      })
-    }
-  }
-
-  const startCam = () => {
-    setSide(null)
-    setCamOn(true)
-  }
-  const stopCam = () => setCamOn(false)
-
-  /** 셔터 — 앱을 벗어나지 않는다. 찍고 나서도 프리뷰가 그대로라 바로 다음 장을 찍을 수 있다 */
-  const shutter = async () => {
-    try {
-      const image = await ports.preview.shoot(camSize(state.cfg.camRes))
-      if (!image) {
-        // 조용히 넘어가면 현장에서 "눌렀는데 아무 일도 안 난다"가 된다. 반드시 말한다
-        dispatch({ type: 'snack', snack: { msg: '촬영 결과가 비어 있습니다 — 다시 눌러 주세요' } })
-        return
-      }
-      await addPhoto(image)
-    } catch (e) {
-      const why = e instanceof Error ? e.message : String(e)
-      dispatch({ type: 'snack', snack: { msg: `촬영 실패 — ${why}` } })
-    }
+    const lost = picked.length - done
+    dispatch({
+      type: 'snack',
+      snack: { msg: lost ? `${done}장 불러옴 · ${lost}장 실패` : `${done}장 불러옴` },
+    })
   }
 
   /**
-   * 프리뷰 수명은 여기 한 곳에서만 관리한다.
-   * 프리뷰가 아레나를 **덮으므로**, 시트나 사이드패널이 열릴 때는 잠시 꺼야 표를 고칠 수 있다.
+   * 뒤로가기 — **덮개부터 닫는다.** 전체화면 뷰어 → 사이드 패널 순.
+   * 둘 다 닫혀 있으면 AppShell 의 바닥 처리기가 화면을 뒤로 물린다.
    */
-  // 사용법이 열려 있을 때도 꺼야 한다 — 네이티브 프리뷰는 우리 화면 위에 그려져서 글을 덮는다
-  const covered = state.sheet !== null || side !== null || state.help
-  const wantCam = camOn && !covered
-
-  useEffect(() => {
-    let alive = true
-    const run = async () => {
-      if (!wantCam) {
-        await ports.preview.stop()
-        return
-      }
-      const box = arena.current?.getBoundingClientRect()
-      if (!box) return
-      try {
-        await ports.preview.start({
-          x: box.left,
-          y: box.top,
-          width: box.width,
-          height: box.height,
-        })
-      } catch (e) {
-        if (!alive) return
-        const why = e instanceof Error ? e.message : String(e)
-        dispatch({ type: 'snack', snack: { msg: `카메라를 열지 못했습니다 — ${why}` } })
-        setCamOn(false)
-      }
-    }
-    void run()
-    return () => {
-      alive = false
-    }
-  }, [wantCam, ports, dispatch])
-
-  // 네이티브 뷰라 화면을 떠나도 저절로 사라지지 않는다. 반드시 꺼야 한다
-  useEffect(() => {
-    return () => {
-      void ports.preview.stop()
-    }
-  }, [ports])
+  useBackHandler(viewer, () => {
+    setViewer(false)
+    return true
+  })
+  useBackHandler(side !== null, () => {
+    setSide(null)
+    return true
+  })
 
   const say = (msg: string) => {
     setSide(null)
     dispatch({ type: 'snack', snack: { msg } })
   }
 
-  const go = (screen: 'export' | 'settings' | 'list') => {
-    void stopCam()
+  const go = (screen: 'export' | 'settings' | 'list' | 'camera') => {
+    setSide(null)
     dispatch({ type: 'go', screen })
   }
 
@@ -209,31 +143,19 @@ export default function Main() {
       <EditTable />
 
       <div className="icons">
-        {camOn ? (
-          <>
-            <button className="cam" onClick={shutter}>
-              <span className="ic">📸</span>셔터
-            </button>
-            <button onClick={stopCam}>
-              <span className="ic">✕</span>카메라끄기
-            </button>
-          </>
-        ) : (
-          <>
-            <button className="cam" onClick={startCam}>
-              <span className="ic">📷</span>촬영
-            </button>
-            {/*
-             * 여기 있던 `카메라전환`(폰 카메라 앱)을 뺐다 — **찍은 사진이 사라지는 경로**였다.
-             * 인텐트에 `EXTRA_OUTPUT` 을 주므로 폰 카메라 앱은 우리 파일에만 쓰고 갤러리에 안 넣는데,
-             * 이 기종은 결과가 앱으로 안 돌아온다 → 앱에도 갤러리에도 안 남는다 (2026-07-30).
-             * 그 자리에 좌패널에 숨어 있던 `불러오기` 를 올렸다.
-             */}
-            <button onClick={() => shoot('gallery')}>
-              <span className="ic">🖼</span>불러오기
-            </button>
-          </>
-        )}
+        {/* 누르면 **전체화면 촬영 화면**으로 간다. 찍으면 그 화면이 닫히고 여기로 돌아온다 */}
+        <button className="cam" onClick={() => go('camera')}>
+          <span className="ic">📷</span>촬영
+        </button>
+        {/*
+         * 여기 있던 `카메라전환`(폰 카메라 앱)을 뺐다 — **찍은 사진이 사라지는 경로**였다.
+         * 인텐트에 `EXTRA_OUTPUT` 을 주므로 폰 카메라 앱은 우리 파일에만 쓰고 갤러리에 안 넣는데,
+         * 이 기종은 결과가 앱으로 안 돌아온다 → 앱에도 갤러리에도 안 남는다 (2026-07-30).
+         * 그 자리에 좌패널에 숨어 있던 `불러오기` 를 올렸다.
+         */}
+        <button onClick={load}>
+          <span className="ic">🖼</span>불러오기
+        </button>
         <button onClick={() => go('export')}>
           <span className="ic">📤</span>내보내기
         </button>
@@ -245,14 +167,11 @@ export default function Main() {
         </button>
       </div>
 
-      <div className="arena" ref={arena}>
-        {/* 프리뷰가 들어갈 자리. 켜기 전에 이미 DOM 에 있어야 한다(웹 구현이 여기에 video 를 넣는다) */}
-        <div id={PREVIEW_PARENT} className="preview" />
-
+      <div className="arena">
         <button className="sidetab l" onClick={() => setSide('left')}>
           보드판서식
         </button>
-        {!camOn && !viewer && <Stage onOpen={() => setViewer(true)} />}
+        {!viewer && <Stage onOpen={() => setViewer(true)} />}
         <button className="sidetab r" onClick={() => setSide('right')}>
           공유
         </button>

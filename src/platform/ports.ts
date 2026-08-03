@@ -15,10 +15,19 @@ export const DISPLAY_EDGE = 1920
 /** 목록 썸네일 긴 변. 100장 ≈ 30MB */
 export const THUMB_EDGE = 320
 
-export type PhotoSource =
-  | 'camera' // 앱 카메라
-  | 'system' // 시스템 카메라 (동산 조리개 버튼 대응. 광각·줌)
-  | 'gallery' // 폰 사진 가져오기
+/**
+ * 예외 하나를 **사람이 읽을 한 줄**로.
+ *
+ * `e instanceof Error ? e.message : String(e)` 로는 안 된다 — Capacitor 플러그인은
+ * `Error` 가 아니라 `{ message: 'camera already started' }` 같은 **평범한 객체**를 던지고,
+ * 그러면 `String(e)` 가 `[object Object]` 를 뱉는다. 현장에서 원인을 못 찾게 되는 게
+ * 정확히 이 지점이라(스낵바가 유일한 단서다) 메시지를 끝까지 캐낸다.
+ */
+export function reason(e: unknown): string {
+  if (e instanceof Error) return e.message
+  if (typeof e === 'object' && e !== null && 'message' in e) return String(e.message)
+  return String(e)
+}
 
 /** 촬영 결과. 원본은 불변이고, 화면에는 줄여서 펼친 비트맵을 그린다 */
 export interface CapturedImage {
@@ -44,9 +53,16 @@ export interface CapturedImage {
  */
 export type PickedImage = () => Promise<CapturedImage>
 
+/**
+ * **폰 사진 불러오기 전용.** 촬영은 여기가 아니라 앱 안 카메라(`PreviewPort`)가 한다.
+ *
+ * 폰 카메라 앱을 띄우는 길(`Camera.getPhoto`)이 여기 있었는데 지웠다 — 이 기종은
+ * 촬영 결과가 앱으로 안 돌아와서 **앱에도 갤러리에도 안 남았다**(2026-07-30).
+ * 부르는 데가 없는 채로 남겨 두면 언젠가 다시 켜진다.
+ */
 export interface CameraPort {
-  /** 사용자가 취소하면 빈 배열. 갤러리는 여러 장일 수 있다 */
-  capture(source: PhotoSource): Promise<PickedImage[]>
+  /** 사용자가 취소하면 빈 배열. 여러 장일 수 있다 */
+  pickFromGallery(): Promise<PickedImage[]>
 }
 
 /** 미리보기를 띄울 자리 (CSS 픽셀) */
@@ -118,6 +134,20 @@ export interface StoragePort {
 }
 
 export interface SharePort {
+  /**
+   * 찍은 **원본을 폰 갤러리에 한 벌 남긴다** (2026-08-03 사용자 결정).
+   *
+   * 우리 원본은 앱 전용 영역에 있어서 **앱을 지우면 같이 사라진다** — 보고서 근거자료가 그렇게
+   * 날아가면 안 된다. 갤러리에 있으면 앱에 무슨 일이 생겨도 **「불러오기」로 다시 작업할 수 있고**,
+   * 구글포토 백업에도 자동으로 실린다.
+   *
+   * 앱 전용본을 없애고 갤러리 것만 쓰지는 않는다 — 사용자가 갤러리를 정리하다 지우면
+   * 앱 안의 사진이 통째로 깨진다. 용량 두 벌은 그 값이다(2026-07-29 판단과 같다).
+   *
+   * @param fileName 갤러리에 남길 이름. 촬영 시각 기준 — 표 값은 나중에 바뀔 수 있어 못 쓴다
+   * @returns 사용자에게 보여줄 저장 위치
+   */
+  saveOriginal(fileName: string, blob: Blob): Promise<string>
   /**
    * 표를 구운 사진 한 장을 저장한다. **경로 규칙은 `buildPath` 가 이미 정했고 여기서는 따르기만 한다.**
    *

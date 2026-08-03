@@ -71,6 +71,12 @@ export interface StampCtx {
 export interface StampResult {
   boxW: number
   boxH: number
+  /**
+   * 표 상자의 좌상단. **촬영 화면이 «자리»만 표시할 때 이걸 쓴다** —
+   * 자리 계산을 밖에서 다시 하면 여기가 바뀔 때 조용히 어긋나 미리보기가 거짓말이 된다.
+   */
+  x: number
+  y: number
   /** 실제 적용된 글자 크기(px) */
   fontSize: number
   /** 그려진 행 수 (빈 값 제외 후) */
@@ -93,16 +99,25 @@ export function renderStamp(
   rows: StampRow[],
   style: StampStyle = DEFAULT_STYLE,
 ): StampResult {
-  const fs = Math.max(11, Math.round(W * style.fontRatio))
+  /**
+   * 글자·여백의 기준은 **짧은 변**이다. 폭을 기준으로 하면 **가로 사진에서 표가 부푼다** —
+   * 같은 4:3 사진인데 세로(3060×4080)는 글자 80px, 가로(4080×3060)는 106px 이 되어
+   * 표가 사진 높이의 21% → 36% 를 먹었다 (2026-08-03 사용자 지적).
+   *
+   * 짧은 변을 쓰면 두 방향에서 표가 **같은 크기**로 나온다. 세로 사진은 폭이 곧 짧은 변이라
+   * **이미 찍은 세로 사진의 표는 하나도 안 바뀐다** — 가로만 고쳐지는 변경이다.
+   */
+  const base = Math.min(W, H)
+  const fs = Math.max(11, Math.round(base * style.fontRatio))
   const pad = Math.round(fs * 0.55)
   const rowH = Math.round(fs * 1.75)
   const gap = Math.round(fs * 0.9)
-  const mg = Math.round(W * style.marginRatio)
+  const mg = Math.round(base * style.marginRatio)
   const font = `${fs}px ${FONT_STACK}`
 
   // 빈 값 행은 표에서 자동 제외 (00.요구사항 §5 검증 완료 항목)
   const R = rows.filter((r) => String(r.value).trim() !== '')
-  if (!R.length) return { boxW: 0, boxH: 0, fontSize: fs, rows: 0 }
+  if (!R.length) return { boxW: 0, boxH: 0, x: 0, y: 0, fontSize: fs, rows: 0 }
 
   c.font = font
   let wL = 0
@@ -176,5 +191,5 @@ export function renderStamp(
   })
 
   c.restore()
-  return { boxW, boxH, fontSize: fs, rows: R.length }
+  return { boxW, boxH, x, y, fontSize: fs, rows: R.length }
 }

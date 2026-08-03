@@ -6,7 +6,7 @@
  */
 
 import { useRef } from 'react'
-import type { FormRow } from '../../core/models'
+import { PHASES, type FormRow } from '../../core/models'
 import { previewFields, useStore } from '../state/store'
 
 const LONG_PRESS_MS = 500
@@ -86,10 +86,11 @@ export default function EditTable() {
 
             {row.kind === 'phase' ? (
               <div className="phase">
-                {(['작업 전', '작업 후'] as const).map((v) => (
+                {PHASES.map((v) => (
                   <button
                     key={v}
-                    className={v === '작업 전' ? 'b' : 'a'}
+                    // 전=주황 · 중=파랑 · 후=초록. 색으로 진행 단계를 읽는다
+                    className={v === '작업 전' ? 'b' : v === '작업 후' ? 'a' : 'm'}
                     aria-pressed={value === v}
                     // 가장 자주 눌리는 곳이다. 여기에 확인창을 놓으면 앱이 못 쓰게 된다
                     onClick={() => dispatch({ type: 'setValue', key: row.key, value: v })}

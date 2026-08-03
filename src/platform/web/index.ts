@@ -45,6 +45,10 @@ export const webShare: SharePort = {
     setTimeout(() => URL.revokeObjectURL(url), 60_000)
     return '브라우저 다운로드 폴더'
   },
+  /** PC 에는 갤러리가 없다. 원본은 이미 IndexedDB 에 있으니 할 일이 없다 */
+  async saveOriginal() {
+    return '(브라우저에는 갤러리가 없습니다)'
+  },
   async share() {
     /* 단계 5에서 @capacitor/share */
   },

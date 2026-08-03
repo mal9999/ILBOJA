@@ -27,6 +27,14 @@ export default function Viewer({ onClose }: { onClose: () => void }) {
       <button className="vclose" onClick={onClose}>
         ✕ 닫기
       </button>
+      {/*
+       * 회전 — 자동 보정이 어긋났을 때 사람이 고치는 길.
+       * 이 기종 카메라가 방향과 무관하게 EXIF 6 을 붙여서 가로 촬영이 눕는다(2026-08-03).
+       * 원본은 안 건드리고 표시 각도만 돈다. 표도 같이 바로 선다.
+       */}
+      <button className="vturn" onClick={() => dispatch({ type: 'rotate' })}>
+        ↻ 회전
+      </button>
       <button className="vpick" onClick={edit}>
         ✏ 이 사진 고치기
       </button>

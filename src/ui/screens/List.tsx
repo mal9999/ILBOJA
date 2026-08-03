@@ -5,9 +5,10 @@
  */
 
 import { useEffect, useRef } from 'react'
-import { rowsForRender } from '../../core/models'
+import { rowsForRender, sizeOf, styleFor } from '../../core/models'
 import { renderStamp, type StampStyle } from '../../core/renderStamp'
 import { missingRequired } from '../../core/validate'
+import { drawPhoto } from '../../platform/image'
 import { useStore } from '../state/store'
 import { usePhotoImage } from '../state/images'
 import type { FormRow, Photo } from '../../core/models'
@@ -98,18 +99,25 @@ function Thumb({ photo, form, style }: { photo: Photo; form: FormRow[]; style: S
   const ref = useRef<HTMLCanvasElement>(null)
   const image = usePhotoImage(photo, 'thumb')
 
-  // 크기는 메타로 안다 — 사진이 아직 안 왔어도 자리가 안 흔들린다
+  // 크기는 메타로 안다 — 사진이 아직 안 왔어도 자리가 안 흔들린다.
+  // **회전을 반영한 크기**를 쓴다. 안 그러면 가로 사진 칸이 세로로 잡혀 자리가 튄다
+  const shown = sizeOf(photo)
   const w = 320
-  const h = Math.round((320 * photo.height) / photo.width)
+  const h = Math.round((320 * shown.height) / shown.width)
 
   useEffect(() => {
     const cv = ref.current
     const c = cv?.getContext('2d')
     if (!cv || !c || !image) return
+    // 회전 → 축소 → 표 순서. 표는 회전 뒤 좌표계에 그려야 같이 눕지 않는다.
+    // 회전은 딴 캔버스에서 끝내고 여기서는 통째로 줄이기만 한다 — 회전 계산이 한 곳에만 있게
+    const off = document.createElement('canvas')
+    drawPhoto(off, off.getContext('2d')!, image, photo.rotate)
     cv.width = w
     cv.height = h
-    c.drawImage(image, 0, 0, w, h)
-    renderStamp(c, w, h, rowsForRender(form, photo.fields), style)
+    c.drawImage(off, 0, 0, w, h)
+    // 자리는 그 사진이 촬영 때 고른 것을 따른다 (models `styleFor`)
+    renderStamp(c, w, h, rowsForRender(form, photo.fields), styleFor(photo, style))
   }, [photo, image, form, style, w, h])
 
   return <canvas ref={ref} width={w} height={h} />

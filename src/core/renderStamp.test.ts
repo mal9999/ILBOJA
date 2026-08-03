@@ -124,11 +124,28 @@ describe('renderStamp', () => {
     expect(c.texts.length).toBe(ROWS.length * 2) // 라벨 + 값
   })
 
-  it('글자 크기는 이미지 폭에 비례한다 (기본 2.6%)', () => {
+  it('글자 크기는 이미지 짧은 변에 비례한다 (기본 2.6%)', () => {
     const big = renderStamp(fakeCtx(), 1920, 1440, ROWS)
     const small = renderStamp(fakeCtx(), 640, 480, ROWS)
-    expect(big.fontSize).toBe(Math.round(1920 * 0.026))
-    expect(small.fontSize).toBe(Math.round(640 * 0.026))
+    expect(big.fontSize).toBe(Math.round(1440 * 0.026))
+    expect(small.fontSize).toBe(Math.round(480 * 0.026))
+  })
+
+  /**
+   * ★ 회귀 — **같은 사진을 눕히든 세우든 표는 같은 크기여야 한다.**
+   *
+   * 폭을 기준으로 삼던 시절엔 가로 사진에서 글자가 1.33배로 부풀어, 표가 사진 높이의
+   * 21% → 36% 를 먹었다 (2026-08-03 사용자 지적). 앱 화면은 늘 세로로 쓰지만
+   * **사진은 눕혀 찍는다** — 그래서 이 규칙이 필요하다.
+   */
+  it('★ 사진이 가로든 세로든 표 크기는 같다', () => {
+    const portrait = renderStamp(fakeCtx(), 3060, 4080, ROWS)
+    const landscape = renderStamp(fakeCtx(), 4080, 3060, ROWS)
+    expect(landscape.fontSize).toBe(portrait.fontSize)
+    expect(landscape.boxW).toBe(portrait.boxW)
+    expect(landscape.boxH).toBe(portrait.boxH)
+    // 세로는 예전 그대로여야 한다 — 폭이 곧 짧은 변이라 기준이 안 바뀐다
+    expect(portrait.fontSize).toBe(Math.round(3060 * 0.026))
   })
 
   it('아주 작은 이미지에서도 11px 밑으로는 안 내려간다', () => {

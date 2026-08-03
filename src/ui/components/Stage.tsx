@@ -7,8 +7,9 @@
  */
 
 import { useEffect, useRef, useState } from 'react'
-import { rowsForRender } from '../../core/models'
+import { rowsForRender, styleFor } from '../../core/models'
 import { renderStamp } from '../../core/renderStamp'
+import { drawPhoto } from '../../platform/image'
 import { useStore } from '../state/store'
 import { usePhotoImage } from '../state/images'
 
@@ -31,10 +32,16 @@ export default function Stage({ onOpen }: { onOpen?: () => void }) {
     const c = cv?.getContext('2d')
     if (!cv || !c || !photo || !image) return
 
-    cv.width = image.width
-    cv.height = image.height
-    c.drawImage(image, 0, 0)
-    renderStamp(c, cv.width, cv.height, rowsForRender(state.form, photo.fields), state.style)
+    // 회전을 먼저 적용한다 — 표는 그 «뒤에» 그려야 사진과 같이 눕지 않는다
+    const { width, height } = drawPhoto(cv, c, image, photo.rotate)
+    // 자리는 **그 사진이 촬영 때 고른 것**을 따른다 — 설정을 바꿔도 옛 사진은 안 움직인다
+    renderStamp(
+      c,
+      width,
+      height,
+      rowsForRender(state.form, photo.fields),
+      styleFor(photo, state.style),
+    )
   }, [photo, image, state.form, state.style])
 
   const move = (d: number) => dispatch({ type: 'move', delta: d })
@@ -48,10 +55,13 @@ export default function Stage({ onOpen }: { onOpen?: () => void }) {
     onOpen?.()
   }
 
+  // 사진이 아레나보다 길면 표가 있는 쪽을 지킨다 — 그 사진이 고른 자리를 따른다
+  const clip = (photo ? styleFor(photo, state.style) : state.style).pos[0]
+
   return (
     <div
       className="stage"
-      data-clip={state.style.pos[0]}
+      data-clip={clip}
       onPointerDown={(e) => {
         setDown(e.clientX)
         swiped.current = false

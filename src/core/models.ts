@@ -5,13 +5,39 @@
  *      = 03.화면-표준스펙.md §3 (두 문서가 항상 같아야 한다)
  */
 
+import type { StampPos, StampStyle } from './renderStamp'
+
 /** 항목의 계층. 값이 어디서 오고 어떻게 편집되는지를 결정한다. */
 export type FieldKind =
   | 'auto' // 단지·작업일자·작업자 — 설정에서 기본값이 자동 승계됨
   | 'slate' // 동/호수·작업내용·위치 — 찍을 때마다 넣는 값
-  | 'phase' // 구분(작업 전/후) — 2버튼 토글
+  | 'phase' // 구분(작업 전/중/후) — 버튼 토글
 
 export type InputKind = 'choice' | 'ho'
+
+/**
+ * 구분(`kind:'phase'`)의 선택지. **여기가 유일한 출처다.**
+ *
+ * 값이 파일명·폴더명으로도 나가므로(`cfg.fileKeys` 기본값에 `phase` 가 있다) 목록이 두 곳에
+ * 있으면 표와 파일명이 갈린다. 순서는 현장 진행 순서 그대로다.
+ * 「작업 중」은 2026-08-03 추가 — 하루에 끝나지 않는 작업의 중간 상태를 남길 데가 없었다.
+ */
+export const PHASES = ['작업 전', '작업 중', '작업 후'] as const
+export type Phase = (typeof PHASES)[number]
+
+/** 표시용 추가 회전(시계방향). `Photo.rotate` 참고 */
+export type Rotate = 0 | 90 | 180 | 270
+
+/** 회전을 적용한 «보이는» 크기. 90·270 이면 가로세로가 바뀐다 */
+export function sizeOf(photo: { width: number; height: number; rotate?: Rotate }): {
+  width: number
+  height: number
+} {
+  const turned = photo.rotate === 90 || photo.rotate === 270
+  return turned
+    ? { width: photo.height, height: photo.width }
+    : { width: photo.width, height: photo.height }
+}
 
 /** 표 한 장의 값. key → 값. */
 export type Fields = Record<string, string>
@@ -49,17 +75,32 @@ export interface Photo {
   originalPath: string
   sha256: string
   thumb320Path: string
+  /**
+   * 촬영 시점에 확정된 표 자리. **값과 같은 이유로 사진이 소유한다**(`snapshotFields` 참고).
+   *
+   * 자리를 옮기는 이유는 표가 하자를 가리기 때문인데, 하자 있는 자리는 사진마다 다르다.
+   * 전역 설정 하나로 두면 이 사진을 피해 옮기는 순간 **이미 찍은 사진들의 표까지 따라 움직여**
+   * 그 사진들에서는 다시 하자를 가린다. 설정의 자리는 「다음 촬영 기본값」이다.
+   *
+   * 이 필드가 생기기 전 사진은 `undefined` — `hydrate` 가 그때의 설정값으로 채워 준다.
+   */
+  stampPos?: StampPos
+  /**
+   * 표시할 때 **더 돌려야 하는 각도**(시계방향). 원본 바이트는 건드리지 않는다.
+   *
+   * 이 기종 카메라는 **폰을 어떻게 들었든 EXIF 방향을 늘 6(90° 돌려라)으로 붙인다**
+   * (실기기 원본 4장 분석, 2026-08-03 — 전부 `1920×1440` + `EXIF 6`).
+   * 세로로 찍으면 그게 맞아떨어져 똑바로 나오지만, **가로로 찍어도 똑같이 90° 를 돌려서 눕는다.**
+   * 그래서 EXIF 를 믿지 않고 **셔터를 누른 순간 화면이 가로였는지**로 보정한다 — 그건 우리가 안다.
+   *
+   * 원본에 구우면 재인코딩이라 «원본 불변» 이 깨지고 느려진다. `stampPos` 와 같이
+   * **그릴 때만 적용하는 메타**로 둔다. 표도 이 회전 «뒤» 좌표계에 그려야 같이 눕지 않는다.
+   */
+  rotate?: Rotate
   rev: number
   exportedRev: number
   /** 휴지통. 있으면 삭제된 것 */
   deletedAt?: string
-}
-
-/** 개인 입력이력 — 입력 시트의 칩 재료 */
-export interface HistoryEntry {
-  key: string
-  value: string
-  count: number
 }
 
 /**
@@ -87,6 +128,18 @@ export function snapshotFields(
         : (base[row.key] ?? '')
   }
   return f
+}
+
+/**
+ * 이 사진을 그릴 때 쓸 스타일. **자리만 사진이 정하고 나머지(배경·정렬·크기)는 설정을 따른다.**
+ *
+ * 배경·정렬·글자크기는 산출물 전체가 같아야 하는 «문서 서식»이라 설정이 소유하는 게 맞다.
+ * 자리는 사진 내용에 달린 것이라 사진이 소유한다 — 둘의 소유자가 다른 이유다.
+ */
+export function styleFor(photo: { stampPos?: StampPos }, style: StampStyle): StampStyle {
+  // 자리가 같으면 **같은 객체를 그대로** 돌려준다. 새 객체를 만들면 이걸 의존성으로 쓰는
+  // 캔버스 렌더가 매 렌더마다 다시 그린다
+  return !photo.stampPos || photo.stampPos === style.pos ? style : { ...style, pos: photo.stampPos }
 }
 
 /**

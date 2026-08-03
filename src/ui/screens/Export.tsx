@@ -7,10 +7,11 @@
  */
 
 import { useState } from 'react'
-import { rowsForRender, type FormRow, type Photo } from '../../core/models'
+import { rowsForRender, sizeOf, styleFor, type FormRow, type Photo } from '../../core/models'
 import { buildPath, type PathConfig } from '../../core/path'
 import { renderStamp, type StampStyle } from '../../core/renderStamp'
 import { missingRequired } from '../../core/validate'
+import { drawPhoto } from '../../platform/image'
 import { usePorts } from '../state/ports'
 import { useStore, type Config } from '../state/store'
 
@@ -42,7 +43,8 @@ async function bake(
   /** 디코드/인코드 소요를 따로 담아 간다 — "굽기 2791ms" 만으로는 어디를 고칠지 모른다 */
   took: { decode: number; encode: number },
 ): Promise<Blob> {
-  const long = Math.max(photo.width, photo.height)
+  const shown = sizeOf(photo)
+  const long = Math.max(shown.width, shown.height)
   const target = saveRes === '원본' ? long : Number(saveRes) || long
   const k = Math.min(1, target / long)
 
@@ -58,8 +60,6 @@ async function bake(
   // 그리기까지 굽기에 넣는다 — 어디에도 안 담기는 시간이 있으면 합이 안 맞아 또 헤맨다
   const t1 = performance.now()
   const canvas = document.createElement('canvas')
-  canvas.width = bitmap.width
-  canvas.height = bitmap.height
   /**
    * `willReadFrequently` — 캔버스를 **CPU 쪽에** 둔다.
    *
@@ -69,10 +69,12 @@ async function bake(
    * 우리는 그린 뒤 곧바로 한 번 읽고 버린다. GPU 에 둘 이유가 없다.
    */
   const g = canvas.getContext('2d', { willReadFrequently: true })!
-  g.drawImage(bitmap, 0, 0)
+  // 회전을 적용해 그린다. **표는 그 뒤에** — 안 그러면 표까지 같이 눕는다
+  const out = drawPhoto(canvas, g, bitmap, photo.rotate)
   bitmap.close() // 다음 장을 위해 즉시 놓는다
 
-  renderStamp(g, canvas.width, canvas.height, rowsForRender(form, photo.fields), style)
+  // 자리는 그 사진이 촬영 때 고른 것을 따른다 (models `styleFor`)
+  renderStamp(g, out.width, out.height, rowsForRender(form, photo.fields), styleFor(photo, style))
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -168,6 +170,8 @@ export default function Export() {
           const t1 = performance.now()
           const jpeg = await bake(blob, photo, state.form, state.style, size, took)
           const t2 = performance.now()
+          // 내보내기는 **표 붙은 것만** 낸다. 원본은 촬영 순간 갤러리에 이미 남는다
+          // (`SharePort.saveOriginal`) — 같은 목적의 장치를 두 개 두지 않는다 (2026-08-03)
           at = await writeInTurn(buildPath(photo.fields, pathConfig(state.cfg), i + 1), jpeg)
           read += t1 - t0
           write += performance.now() - t2

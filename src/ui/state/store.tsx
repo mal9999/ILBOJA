@@ -15,12 +15,19 @@ import {
   type ReactNode,
 } from 'react'
 import { DEFAULT_FORM } from '../../core/defaultForm'
-import { snapshotFields, type Fields, type FormRow, type Photo } from '../../core/models'
-import { DEFAULT_STYLE, type StampStyle } from '../../core/renderStamp'
+import {
+  snapshotFields,
+  type Fields,
+  type FormRow,
+  type Photo,
+  type Rotate,
+} from '../../core/models'
+import { DEFAULT_STYLE, type StampPos, type StampStyle } from '../../core/renderStamp'
 import type { StoredPaths } from '../../platform/ports'
 import { usePorts } from './ports'
 
-export type Screen = 'home' | 'main' | 'list' | 'export' | 'settings' | 'form'
+/** `camera` 는 전체화면이라 오버레이가 아니라 화면이다 — 프리뷰가 폰 화면을 통째로 쓴다 */
+export type Screen = 'home' | 'main' | 'list' | 'export' | 'settings' | 'form' | 'camera'
 
 /** 일괄 적용을 되돌리기 위한 최소 스냅샷 (03 §2.7) */
 export interface BulkUndo {
@@ -78,8 +85,21 @@ export interface Config {
 }
 
 export const DEFAULT_CONFIG: Config = {
-  folderKeys: ['danji', 'ho'],
-  fileKeys: ['work', 'phase'],
+  /**
+   * **폴더는 단지까지만. 동/호수는 파일명 앞으로** (2026-08-03 사용자 결정).
+   *
+   * 전달이 «갤러리에서 다중선택 → 카톡» 이라 폴더 규칙이 곧 **갤러리 앨범 규칙**이다.
+   * 갤러리는 맨 끝 폴더 이름만 앨범으로 보므로 —
+   *
+   * - `단지/동호수` 2단이면 앨범이 **세대 수만큼**(50개) 생기고, 단지가 달라도 동호수가 같으면
+   *   **앨범 이름이 「01」로 겹친다**(실기기에서 `행복아파트/01`·`중리/01` 둘 다 `bucket=01` 확인).
+   * - `단지+동호수` 를 한 폴더로 합쳐도 앨범 수는 그대로고, 파일탐색기에서 세대 폴더만 쭉 나열된다.
+   *
+   * 동/호수를 **파일명 맨 앞**에 두면 폴더도 앨범도 **단지 수만큼**(2개)으로 줄고 이름도 유일하다.
+   * 이름순 정렬이 곧 세대별 묶음이라 골라 보내기도 그대로 된다.
+   */
+  folderKeys: ['danji'],
+  fileKeys: ['ho', 'work', 'phase'],
   folderPath: '/Documents/일보자',
   histCount: 50,
   camRes: '4080 × 3060 (4:3)',
@@ -128,6 +148,10 @@ export type Action =
       height: number
       sha256: string
       paths: StoredPaths
+      /** 촬영 화면에서 고른 표 자리. 안 주면 설정의 「다음 촬영 기본값」 */
+      stampPos?: StampPos
+      /** 셔터 순간 화면 방향으로 판정한 보정 회전 (`Photo.rotate`) */
+      rotate?: Rotate
     }
   | { type: 'setValue'; key: string; value: string }
   | { type: 'move'; delta: number }
@@ -151,6 +175,8 @@ export type Action =
   | { type: 'mode'; mode: Mode }
   | { type: 'help'; on: boolean }
   | { type: 'markExported' }
+  /** 현재 사진을 시계방향 90° 더 돌린다 (표시용. 원본은 안 건드린다) */
+  | { type: 'rotate' }
 
 const todayISO = () => new Date().toISOString().slice(0, 10)
 
@@ -247,12 +273,19 @@ export function reducer(s: State, a: Action): State {
     case 'hydrate': {
       // 저장된 게 없으면 `settings` 는 null — 그때는 기본값 그대로 간다
       const settings = a.settings
+      /**
+       * `stampPos` 가 없던 시절 사진에 **그때 쓰던 설정값을 박아 준다.**
+       * 안 채우면 그 사진들만 설정의 자리를 계속 따라다녀서, 촬영 화면에서 자리를 옮길 때마다
+       * 옛 사진의 표가 같이 움직인다 — 이 필드를 만든 이유가 그대로 되살아난다.
+       */
+      const pos = settings?.style.pos ?? s.style.pos
+      const seat = (p: Photo): Photo => (p.stampPos ? p : { ...p, stampPos: pos })
       return {
         ...s,
         ...(settings ?? {}),
         ...(settings ? { form: reseed(settings.form) } : {}),
-        photos: a.photos,
-        trash: a.trash,
+        photos: a.photos.map(seat),
+        trash: a.trash.map(seat),
         cur: Math.max(0, a.photos.length - 1),
       }
     }
@@ -273,6 +306,9 @@ export function reducer(s: State, a: Action): State {
         originalPath: a.paths.original,
         sha256: a.sha256,
         thumb320Path: a.paths.thumb,
+        // 촬영 화면에서 눈으로 확인하고 고른 자리. 불러오기처럼 고를 기회가 없었으면 설정값
+        stampPos: a.stampPos ?? s.style.pos,
+        rotate: a.rotate ?? 0,
         rev: 1,
         exportedRev: 0,
       }
@@ -483,6 +519,23 @@ export function reducer(s: State, a: Action): State {
 
     case 'help':
       return { ...s, help: a.on }
+
+    /**
+     * 회전 — **원본은 안 건드리고 «표시용 각도»만 돌린다**(`Photo.rotate`).
+     *
+     * 이 기종 카메라가 방향과 무관하게 EXIF 6 을 붙여서, 가로로 찍으면 눕는다(2026-08-03).
+     * 촬영 때 자동으로 보정하지만 어긋나는 경우가 있어 사람이 고칠 길을 둔다.
+     * `rev` 를 올려 「📤 최신 아님」 이 뜨게 한다 — 내보낸 파일과 달라졌기 때문이다.
+     */
+    case 'rotate': {
+      if (!s.photos.length) return s
+      const photos = s.photos.map((p, i) =>
+        i === s.cur
+          ? { ...p, rotate: (((p.rotate ?? 0) + 90) % 360) as Rotate, rev: p.rev + 1 }
+          : p,
+      )
+      return { ...s, photos }
+    }
 
     case 'markExported':
       return { ...s, photos: s.photos.map((p) => ({ ...p, exportedRev: p.rev })) }

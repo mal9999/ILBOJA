@@ -307,10 +307,13 @@ describe('표 항목 관리 (순서·추가·폴더/파일명 지정)', () => {
   })
 
   it('폴더명·파일명 지정을 켜고 끈다', () => {
+    // 기본값을 박아 두지 않는다 — 규칙이 바뀔 때마다 이 테스트가 같이 깨진다(2026-08-03에 실제로 깨졌다).
+    // 여기서 볼 것은 «토글이 더하고 뺀다» 뿐이다
+    const base = initialState.cfg.folderKeys
     const on = reducer(initialState, { type: 'togglePathKey', which: 'folderKeys', key: 'work' })
-    expect(on.cfg.folderKeys).toEqual(['danji', 'ho', 'work'])
+    expect(on.cfg.folderKeys).toEqual([...base, 'work'])
     const off = reducer(on, { type: 'togglePathKey', which: 'folderKeys', key: 'work' })
-    expect(off.cfg.folderKeys).toEqual(['danji', 'ho'])
+    expect(off.cfg.folderKeys).toEqual(base)
   })
 
   it('초기화하면 항목과 저장 설정이 처음으로 돌아간다', () => {

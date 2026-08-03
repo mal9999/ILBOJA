@@ -12,7 +12,7 @@ import { useState } from 'react'
 import { buildPath } from '../../core/path'
 import { previewFields, useStore } from '../state/store'
 
-const KIND_LABEL: Record<string, string> = { auto: '자동', slate: '찍을때', phase: '전/후' }
+const KIND_LABEL: Record<string, string> = { auto: '자동', slate: '찍을때', phase: '전/중/후' }
 
 export default function FormEdit() {
   const { state, dispatch } = useStore()

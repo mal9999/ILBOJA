@@ -8,6 +8,8 @@
   --brand: #1a62d6;
   --accent: #ffd600;
   --before: #e8590c;
+  /* 작업 중 — 전(주황)·후(초록)과 한눈에 갈리는 파랑. 셋이 진행 순서로 읽힌다 */
+  --mid: #1971c2;
   --after: #2b8a3e;
   --bad: #c92a2a;
 
@@ -310,6 +312,9 @@ button {
 }
 .phase button {
   flex: 1;
+  min-width: 0; /* 3개로 늘었다 — 안 주면 글자가 칸을 밀어내 넘친다 */
+  padding: 0 2px;
+  white-space: nowrap;
   min-height: 38px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -323,6 +328,9 @@ button {
 }
 .phase button.b[aria-pressed='true'] {
   background: var(--before);
+}
+.phase button.m[aria-pressed='true'] {
+  background: var(--mid);
 }
 .phase button.a[aria-pressed='true'] {
   background: var(--after);
@@ -394,24 +402,6 @@ button {
 }
 .sidetab.r {
   right: 0;
-}
-/* 앱 안 카메라가 들어가는 자리. 켜기 전에도 DOM 에 있어야 해서 항상 둔다(비어 있으면 안 보임).
-   네이티브는 프리뷰를 WebView 뒤에 그리므로(toBack) 아레나 배경을 비워 줘야 비친다 */
-.preview {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  overflow: hidden;
-  /* ⚠️ 이게 없으면 **아레나 전체의 터치를 이 빈 div 가 삼킨다.** z-index:1 이라
-     z-index 가 없는 `.stage` 위에 깔리기 때문 — 사진 탭도 ◀▶ 도 죽는다(2026-07-30 실기기).
-     카메라는 웹이든 네이티브든 이 자리를 터치로 다루지 않으므로 통째로 비켜 준다 */
-  pointer-events: none;
-}
-.preview video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
 }
 .stage {
   flex: 1;
@@ -534,6 +524,20 @@ button {
 /* 사진 아래끝에 구워진 표를 이 안내문이 가린다. 전체화면은 표를 보러 오는 자리다 */
 .viewer .safe {
   display: none;
+}
+/* 회전 — 닫기 왼쪽에 나란히. 같은 모양이라 같은 규칙을 쓴다 */
+.vturn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 2;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 0;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.88em;
 }
 .vclose {
   position: absolute;
@@ -1059,4 +1063,110 @@ button {
 }
 .cmp small {
   color: var(--dim);
+}
+
+/* ── 촬영 화면 (전체화면 카메라) ────────────────────────────────────────────
+   네이티브 프리뷰는 **WebView 뒤에** 그려진다(preview.ts `toBack:true`).
+   플러그인이 WebView 를 투명하게 만들어 주지만 그 위에 우리가 배경을 칠하면 도로 가려진다 —
+   2026-07-29 에 "실기기에서 하얗게만 나온다"고 본 것이 이것이었다. 그래서 촬영 중에는 비운다. */
+:root[data-cam='1'],
+:root[data-cam='1'] body,
+:root[data-cam='1'] .phone {
+  background: transparent;
+}
+
+.camera {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+
+/* 프리뷰와 표는 **같은 사각형**에 놓인다. 어긋나면 여기서 본 표 자리가 결과와 달라진다 */
+.cam-preview,
+.cam-stamp {
+  position: absolute;
+  /* 터치는 카메라가 받는다(핀치 줌). 우리는 아래 버튼만 받는다 */
+  pointer-events: none;
+}
+.cam-preview {
+  overflow: hidden;
+  /* 사진 비율 밖(레터박스)을 검게 덮는다. 배경색으로는 못 한다 —
+     배경을 칠하면 프리뷰 자리까지 같이 덮어 카메라가 안 보인다 */
+  box-shadow: 0 0 0 9999px #000;
+}
+/* PC 브라우저 개발용 — 웹 구현은 이 안에 <video> 를 넣는다 */
+.cam-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 두께 120px 은 `Camera.tsx` 의 `BAR` 와 **짝을 이룬다.** 프리뷰 자리를 그 값으로 빼 놓기
+   때문에, 한쪽만 바꾸면 바가 프리뷰를(따라서 표 자리를) 덮거나 빈 틈이 생긴다 */
+.cam-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px env(safe-area-inset-bottom, 0px);
+  background: rgba(0, 0, 0, 0.55);
+}
+/* 가로로 눕히면 바도 옆으로 선다 — 아래에 두면 프리뷰 아랫단(표 자리)을 그대로 덮는다 */
+@media (orientation: landscape) {
+  .cam-bar {
+    left: auto;
+    top: 0;
+    bottom: 0;
+    width: 120px;
+    height: auto;
+    flex-direction: column;
+    padding: 16px env(safe-area-inset-right, 0px) 16px 0;
+  }
+}
+.cam-bar button {
+  min-width: var(--tap-lg);
+  min-height: var(--tap-lg);
+  border: 0;
+  background: none;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.78em;
+  padding: 6px 10px;
+}
+.cam-bar button .ic {
+  font-size: 1.6em;
+  line-height: 1;
+}
+.cam-bar button .ph {
+  font-size: 0.82em;
+  color: #c9ced6;
+}
+.cam-bar button:active {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+}
+/* 셔터는 주동작이라 가장 크다 (00.요구사항 §7 — 장갑 낀 한 손 조작) */
+.cam-bar .shot {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  background: #fff;
+  color: #16181d;
+  font-size: 1.5em;
+  font-weight: 700;
+  border: 5px solid rgba(255, 255, 255, 0.45);
+}
+.cam-bar .shot:disabled {
+  background: #b9bec6;
+  font-size: 0.8em;
 }

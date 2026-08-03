@@ -20,8 +20,20 @@ const TARGETS = [
   { dir: Directory.External, label: '앱 전용 폴더 (문서 폴더 쓰기가 막혀 여기 저장됨)' },
 ] as const
 
+/**
+ * 찍은 원본이 갈 자리. **갤러리에 뜨는 게 목적**이라 `Pictures` 를 먼저 시도한다.
+ * 막히면 문서 폴더로 — 실기기에서 문서 폴더에 쓴 사진도 MediaStore 에 등록돼
+ * 갤러리 앨범으로 뜨는 것을 확인했다(2026-08-03).
+ */
+const ORIGIN_TARGETS = [
+  { dir: Directory.ExternalStorage, prefix: `Pictures/${APP_FOLDER}`, label: '갤러리 › 일보자' },
+  { dir: Directory.Documents, prefix: `${APP_FOLDER}/원본`, label: '문서 폴더 › 일보자 › 원본' },
+  { dir: Directory.External, prefix: `${APP_FOLDER}/원본`, label: '앱 전용 폴더 › 원본' },
+] as const
+
 /** 한 번 성공한 자리를 기억한다. 100장을 매번 두 번씩 시도할 이유가 없다 */
 let chosen: (typeof TARGETS)[number] | null = null
+let chosenOrigin: (typeof ORIGIN_TARGETS)[number] | null = null
 
 export const nativeShare: SharePort = {
   async writeExport(relPath, blob) {
@@ -33,6 +45,27 @@ export const nativeShare: SharePort = {
       try {
         await Filesystem.writeFile({ path, data, directory: target.dir, recursive: true })
         chosen = target
+        return target.label
+      } catch (e) {
+        lastError = e
+      }
+    }
+    throw lastError
+  },
+
+  async saveOriginal(fileName, blob) {
+    const data = await toBase64(blob)
+    let lastError: unknown
+
+    for (const target of chosenOrigin ? [chosenOrigin] : ORIGIN_TARGETS) {
+      try {
+        await Filesystem.writeFile({
+          path: `${target.prefix}/${fileName}`,
+          data,
+          directory: target.dir,
+          recursive: true,
+        })
+        chosenOrigin = target
         return target.label
       } catch (e) {
         lastError = e
